@@ -1,80 +1,82 @@
-#include<bits/stdc++.h>
-#include <iostream>
-#include <vector>
 #include <format>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <queue>
+#include <sstream>
 
+#include "instructions.h"
 
-
-//TODO: More instructions and also reformat whole file to a header
-enum instructions {
-    ADDI,
-    EBREAK
-};
-
-std::array<int, 32> registers;
+int registers[31] = {0};
 std::map<std::string, int32_t> register_map;
-
-instructions str_to_instructions(const std::string& instruction) {
-
-    if (instruction == "addi") {
-        return ADDI;
-    }
-    return EBREAK;
-}
-
-
-void addi(std::vector<std::string>& args) {
-    const int dest_reg = register_map[args[1].substr(0, 3)];
-    const int source_reg = register_map[args[2].substr(0, 3)];
-    const int immediate_reg = static_cast<int>(strtoul(args[3].c_str(), nullptr, 16));
-
-    registers[dest_reg] =  registers.at(source_reg) + immediate_reg;
-}
 
 int main() {
 
-    std::ifstream f("testi.txt");
+  std::ifstream f("testi.txt");
 
-    if (!f.is_open()) {
-        std::cerr << "Error opening file" << std::endl;
-        return 1;
+  if (!f.is_open()) {
+    std::cerr << "Error opening file" << std::endl;
+    return 1;
+  }
+
+  // TODO: Clean up
+  std::queue<std::string> instructions;
+  char del = ' ';
+
+  for (int i = 0; i < 32; i++) {
+    register_map[std::format("x{:02}", i)] = i;
+  }
+
+  std::stringstream ss;
+  ss << f.rdbuf();
+  f.close();
+  std::string line;
+  while (std::getline(ss, line)) {
+    std::stringstream line_ss(line);
+    std::string token;
+    while (std::getline(line_ss, token, del)) {
+      if (!token.empty()) {
+        instructions.push(token);
+      }
     }
-    std::string s;
+  }
 
-    //TODO: Clean up
-    std::vector<std::string> instructions;
-    std::getline(f, s);
-    std::getline(f, s);
-    std::cout << s << std::endl;
-    std::stringstream ss(s);
-    char del = ' ';
-    std::string instruction;
+  while (!instructions.empty()) {
+    // TODO: Make an enum of instructions and a mapping function
+    auto inst = str_to_instructions(instructions.front());
+    instructions.pop();
 
+    switch (inst) {
 
-    registers.fill(0);
+    case ADDI: {
+      auto dest = register_map[instructions.front().substr(0, 3)];
+      instructions.pop();
+      auto reg1 = register_map[instructions.front().substr(0, 3)];
+      instructions.pop();
+      auto imm = std::stoi(instructions.front(), 0, 16);
+      instructions.pop();
 
-    for (int i = 0; i < 32; i++) {
-        register_map[std::format("x{:02}", i)] = i;
+      addi(registers, dest, reg1, imm);
+      break;
     }
+    case SUB: {
+      auto dest = register_map[instructions.front().substr(0, 3)];
+      instructions.pop();
+      auto reg1 = register_map[instructions.front().substr(0, 3)];
+      instructions.pop();
+      auto reg2 = register_map[instructions.front().substr(0, 3)];
+      instructions.pop();
 
-    while (getline(ss, instruction, del)) {
-        if (!instruction.empty())
-            instructions.push_back(instruction);
+      sub(registers, dest, reg1, reg2);
+      break;
     }
-
-    //TODO: Make an enum of instructions and a mapping function
-    switch (str_to_instructions(instructions[0])) {
-        case ADDI:
-            addi(instructions);
-
-        default:
-            NULL;
-
+    default:
+      NULL;
     }
+  }
+  for (int i = 0; i < 32; i++) {
+    std::cout << std::format("(x{:02}): {:x}\n", i, registers[i]);
+  }
 
-    for (int i = 0; i < registers.size(); i++) {
-        std::cout << std::format("(x{:02}): {:x}\n", i, registers.at(i));
-    }
-
-    return 0;
+  return 0;
 }

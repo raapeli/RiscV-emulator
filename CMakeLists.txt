@@ -4,4 +4,5 @@ project(RiscV)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(RiscV main.cpp)
+add_compile_options(-ggdb3)
+add_executable(RiscV main.cpp instructions.cpp instructions.h)
