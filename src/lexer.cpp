@@ -1,64 +1,67 @@
 #include "lexer.h"
-#include <string>
 
 Lexer::Lexer(std::string source) {
 
   this->source = source;
   pos = 0;
-  nextChar(); // Initialize with first char
+  NextChar(); // Initialize with first char
 }
 
-void Lexer::nextChar() {
+void Lexer::NextChar() {
   if (pos >= source.length()) {
     ch = 0;
   } else {
     ch = source[pos];
   }
-  ch++;
+  pos++;
 }
 
-Token *Lexer::nextToken() {
+Token *Lexer::NextToken() {
   Token *t = new Token();
-  skipSpaces();
+  SkipSpaces();
   t->literal = std::string(1, ch);
   switch (ch) {
   case '\r':
   case '\n':
     t->type = TokenType::Newline;
     // Skip consecutive newlines
-    while (isNewline() || isSpace())
-      nextChar();
+    while (IsNewline() || IsSpace())
+      NextChar();
     break;
   case '+':
     t->type = TokenType::Plus;
-    nextChar();
+    NextChar();
     break;
   case '-':
     t->type = TokenType::Minus;
-    nextChar();
+    NextChar();
     break;
   case '(':
     t->type = TokenType::Lparen;
-    nextChar();
+    NextChar();
     break;
   case ')':
     t->type = TokenType::Rparen;
-    nextChar();
+    NextChar();
     break;
   case '.':
     t->type = TokenType::Dot;
-    nextChar();
+    NextChar();
     break;
   case ',':
+    t->type = TokenType::Comma;
+    NextChar();
+    break;
+  case ':':
     t->type = TokenType::Colon;
-    nextChar();
+    NextChar();
     break;
   case '#':
     t->type = TokenType::Comment;
-    nextChar();
-    while (!isNewline()) {
+    NextChar();
+    while (!IsNewline()) {
       t->literal += ch;
-      nextChar();
+      NextChar();
     }
     break;
   case 0:
@@ -70,35 +73,35 @@ Token *Lexer::nextToken() {
       // A string literal
       while (ch != '"') {
         t->literal += ch;
-        nextChar();
+        NextChar();
       }
       t->literal += ch;
-      nextChar();
+      NextChar();
     } else {
-      while (isAlpha() || isNum() || isPunct()) {
+      while (IsAlpha() || IsNum() || IsPunct()) {
         t->literal += ch;
-        nextChar();
+        NextChar();
       }
     }
   }
   return t;
 }
 
-bool Lexer::isPunct() {
+bool Lexer::IsPunct() {
   // Some assemblers allow $`._'
   return ch == 36 || ch == 39 || ch == 46 || ch == 95 || ch == 96;
 }
 
-bool Lexer::isAlpha() {
+bool Lexer::IsAlpha() {
   return (ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122);
 }
-bool Lexer::isNum() { return ch >= 48 && ch <= 57; }
+bool Lexer::IsNum() { return ch >= 48 && ch <= 57; }
 
-bool Lexer::isNewline() { return ch == '\r' || ch == '\n'; }
+bool Lexer::IsNewline() { return ch == '\r' || ch == '\n'; }
 
-bool Lexer::isSpace() { return ch == ' ' || ch == '\t'; }
+bool Lexer::IsSpace() { return ch == ' ' || ch == '\t'; }
 
-void Lexer::skipSpaces() {
-  while (isSpace())
-    nextChar();
+void Lexer::SkipSpaces() {
+  while (IsSpace())
+    NextChar();
 }
