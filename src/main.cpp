@@ -1,10 +1,8 @@
 #include <cstdint>
 #include <format>
-#include <fstream>
 #include <iostream>
 #include <map>
 #include <queue>
-#include <sstream>
 
 #include "instructions.h"
 
@@ -33,13 +31,6 @@ void prep2reg(std::queue<std::string> *q, int32_t *dest, int32_t *reg1,
 
 int main() {
 
-  std::ifstream f("testi.txt");
-
-  if (!f.is_open()) {
-    std::cerr << "Error opening file" << std::endl;
-    return 1;
-  }
-
   // TODO: Clean up
   std::queue<std::string> inst_q;
   char del = ' ';
@@ -48,23 +39,8 @@ int main() {
     register_map[std::format("x{:02}", i)] = i;
   }
 
-  std::stringstream ss;
-  ss << f.rdbuf();
-  f.close();
-  std::string line;
-  while (std::getline(ss, line)) {
-    std::stringstream line_ss(line);
-    std::string token;
-    while (std::getline(line_ss, token, del)) {
-      if (!token.empty()) {
-        inst_q.push(token);
-      }
-    }
-  }
-
   int32_t dest, reg1, reg2, imm = 0;
   while (!inst_q.empty()) {
-    // TODO: Make an enum of instructions and a mapping function
     auto inst = str_to_instructions(inst_q.front());
     inst_q.pop();
 
