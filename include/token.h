@@ -1,6 +1,6 @@
 #include <string>
 
-enum class TokenType {
+enum TokenType {
   Symbol = 0,
   Lparen,
   Rparen,
@@ -13,6 +13,18 @@ enum class TokenType {
   Comment,
   EndOfFile
 };
+
+const std::string TokenTypeStrings[] = {"Symbol",
+                                        "Left-Parenthesis",
+                                        "Right-Parenthesis",
+                                        "Plus",
+                                        "Minus",
+                                        "Dot",
+                                        "Colon",
+                                        "Comma",
+                                        "Newline",
+                                        "Comment",
+                                        "End-Of-File"};
 
 class Token {
 public:
