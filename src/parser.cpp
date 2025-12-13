@@ -1,7 +1,7 @@
 #include "parser.h"
 #include <stdexcept>
 
-Parser::Parser(Lexer *l) {
+Parser::Parser(Lexer *l, Emitter *e) {
   this->l = l;
   this->token = nullptr;
   this->peek = nullptr;

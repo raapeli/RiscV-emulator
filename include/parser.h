@@ -1,8 +1,9 @@
+#include "emitter.h"
 #include "lexer.h"
 
 class Parser {
 public:
-  Parser(Lexer *l);
+  Parser(Lexer *l, Emitter *e);
   bool CheckToken(TokenType type);
   bool ChekPeek(TokenType type);
   void Match(TokenType type);
