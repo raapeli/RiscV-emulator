@@ -23,10 +23,10 @@ Cpu::Cpu(XRegisters *xregs, Bus *bus) {
   this->bus = bus;
 }
 
-uint64_t Cpu::fetch() { return bus->read(pc, WORD); }
+uint32_t Cpu::fetch() { return bus->read(pc, WORD); }
 
 int Cpu::execute() {
-  int inst = this->fetch();
+  uint32_t inst = this->fetch();
   this->executeGeneral(inst);
   this->pc += 4;
 
@@ -35,12 +35,12 @@ int Cpu::execute() {
 
 int Cpu::executeGeneral(uint32_t inst) {
 
-  uint32_t opcode = inst & 0x0000007f;
-  uint32_t rd = (inst & 0x00000f80) >> 7;
-  uint32_t rs1 = (inst & 0x000f8000) >> 15;
-  uint32_t rs2 = (inst & 0x01f00000) >> 20;
-  uint32_t funct3 = (inst & 0x00007000) >> 12;
-  uint32_t funct7 = (inst & 0xfe000000) >> 25;
+  uint32_t opcode = inst & 0x7f;
+  uint32_t rd = (inst >> 7) & 0x1F;
+  uint32_t rs1 = (inst >> 15) & 0x1F;
+  uint32_t rs2 = (inst >> 20) & 0x1F;
+  uint32_t funct3 = (inst >> 12) & 0x7;
+  uint32_t funct7 = (inst >> 25) & 0x7F;
 
   switch (opcode) {
   // ADD, SUB, SLL, SLT, SLTU
@@ -59,15 +59,14 @@ int Cpu::executeGeneral(uint32_t inst) {
       }
       case 0x1: { // mulh
         DP("mulh");
-        this->xregs->write(
-            rd, (int32_t)(((uint64_t)(int32_t)reg1 * (uint64_t)(int32_t)reg2) >>
-                          32));
+        result =
+            (int32_t)(((uint64_t)(int32_t)reg1 * (uint64_t)(int32_t)reg2) >>
+                      32);
         break;
       }
       case 0x2: { // mulhsu
         DP("mulhsu");
-        this->xregs->write(
-            rd, (int32_t)(((uint64_t)(int32_t)reg1 * (uint64_t)reg2) >> 32));
+        result = (int32_t)(((uint64_t)(int32_t)reg1 * (uint64_t)reg2) >> 32);
         break;
       }
       case 0x3: { // mulhu
@@ -135,6 +134,7 @@ int Cpu::executeGeneral(uint32_t inst) {
     case 0x1:
       switch (funct7) {}
     }
+    this->xregs->write(rd, result);
   }
   }
   return 1;

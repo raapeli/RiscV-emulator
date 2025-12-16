@@ -44,7 +44,7 @@ uint32_t Bus::read16(uint32_t addr) {
 uint32_t Bus::read32(uint32_t addr) {
   uint32_t index = addr - DRAM_BASE;
   return static_cast<uint32_t>((dram[index]) | (dram[index + 1] << 8) |
-                               (dram[index + 2] << 16));
+                               (dram[index + 2] << 16) | dram[index + 3] << 24);
 }
 
 void Bus::write8(uint32_t addr, uint32_t value) {
@@ -62,4 +62,5 @@ void Bus::write32(uint32_t addr, uint32_t value) {
   dram[index] = static_cast<uint8_t>(value & 0xff);
   dram[index + 1] = static_cast<uint8_t>((value >> 8) & 0xff);
   dram[index + 2] = static_cast<uint8_t>((value >> 16) & 0xFF);
+  dram[index + 3] = static_cast<uint8_t>((value >> 24) & 0xff);
 }

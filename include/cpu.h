@@ -16,7 +16,7 @@ public:
   uint32_t read(uint32_t reg);
 
 private:
-  uint64_t registers[REGISTER_COUNT] = {};
+  uint32_t registers[REGISTER_COUNT] = {};
 };
 
 class Cpu {
@@ -32,6 +32,6 @@ private:
   // Program counter
   uint32_t pc = DRAM_BASE;
 
-  uint64_t fetch();
+  uint32_t fetch();
   int executeGeneral(uint32_t inst);
 };
