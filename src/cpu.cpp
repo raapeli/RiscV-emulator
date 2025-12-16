@@ -43,8 +43,61 @@ int Cpu::executeGeneral(uint32_t inst) {
   uint32_t funct7 = (inst >> 25) & 0x7F;
 
   switch (opcode) {
-  // ADD, SUB, SLL, SLT, SLTU
-  // XOR, SRL, SRA, OR, AND
+  case 0x13: { // Integer register-immediate
+    int32_t imm = ((int32_t)inst >> 20);
+    uint32_t reg1 = this->xregs->read(rs1);
+    uint32_t result;
+    switch (funct3) {
+    case 0x0: { // addi
+      DP("addi");
+      result = (int32_t)(reg1) + imm;
+      break;
+    }
+    case 0x2: { // slti
+      DP("slti");
+      result = ((int32_t)reg1 < imm);
+      break;
+    }
+    case 0x3: { // sltiu
+      DP("sltiu");
+      result = (reg1 < imm);
+      break;
+    }
+    case 0x4: { // xori
+      DP("XORI");
+      result = reg1 ^ imm;
+      break;
+    }
+    case 0x6: { // ori
+      DP("ori");
+      result = reg1 | imm;
+      break;
+    }
+    case 0x7: { // andi
+      DP("andi");
+      result = reg1 & imm;
+      break;
+    }
+    case 0x1: { // slli
+      DP("slli");
+      result = reg1 << (imm & 0x3F);
+      break;
+    }
+    case 0x5: { // srli or srai
+      // TODO: Add checks for illegal instructions
+      if (funct7 >> 1) {
+        DP("srai");
+        result = reg1 >> (uint32_t)(imm & 0x3f);
+      } else {
+        DP("srli");
+        result = (int32_t)reg1 >> (int32_t)(imm & 0x3F);
+      }
+      break;
+    }
+    }
+    this->xregs->write(rd, result);
+    break;
+  }
   case 0x33: { // Integer register-register + integer multi
     uint32_t result;
     uint32_t reg1 = this->xregs->read(rs1);
@@ -115,6 +168,7 @@ int Cpu::executeGeneral(uint32_t inst) {
     } else { // non-multiplication
       switch (funct3) {
       case 0x0: {
+        // TODO: Add checks for illegal instructions
         if (funct7 == 0) { // add
           DP("add");
           result = (int32_t)(reg1 + reg2);
@@ -168,6 +222,7 @@ int Cpu::executeGeneral(uint32_t inst) {
     }
     // Finally write the result
     this->xregs->write(rd, result);
+    break;
   }
   }
   return 1;
