@@ -10,14 +10,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_compile_options(-ggdb3)
 add_executable(RiscV
   src/main.cpp
-  src/instructions.cpp
   src/lexer.cpp
   src/parser.cpp
   src/bus.cpp
   src/cpu.cpp
 )
 
+add_library(emulator src/cpu.cpp src/bus.cpp)
+target_include_directories(emulator PUBLIC include)
+
 target_include_directories(RiscV
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+enable_testing()
+add_subdirectory(tests)
