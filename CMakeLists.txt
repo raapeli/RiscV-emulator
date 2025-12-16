@@ -13,6 +13,8 @@ add_executable(RiscV
   src/instructions.cpp
   src/lexer.cpp
   src/parser.cpp
+  src/bus.cpp
+  src/cpu.cpp
 )
 
 target_include_directories(RiscV
