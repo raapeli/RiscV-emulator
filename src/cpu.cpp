@@ -1,6 +1,7 @@
 #include "cpu.h"
 #include <cstdint>
 #include <iostream>
+#include <sys/types.h>
 
 #define DEBUG
 
@@ -222,6 +223,18 @@ int Cpu::executeGeneral(uint32_t inst) {
     }
     // Finally write the result
     this->xregs->write(rd, result);
+    break;
+  }
+  case 0x37: { // LUI
+    DP("lui");
+    int32_t imm = (inst & 0xfffff000);
+    this->xregs->write(rd, imm);
+    break;
+  }
+  case 0x17: { // auipc
+    DP("auipc");
+    int32_t imm = (int32_t)((uint32_t)this->pc + (uint32_t)(inst & 0xfffff000));
+    this->xregs->write(rd, imm);
     break;
   }
   }

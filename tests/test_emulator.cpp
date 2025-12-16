@@ -9,9 +9,9 @@
     auto _exp = (expected);                                                    \
     if (_act != _exp) {                                                        \
       std::cerr << "FAILED: " << name << "\n"                                  \
-                << "  expected: " << _exp << " " << std::hex << _exp           \
+                << "  expected: " << _exp << " 0x" << std::hex << _exp         \
                 << std::dec << "\n"                                            \
-                << "  got:      " << _act << " " << std::hex << _act           \
+                << "  got:      " << _act << " 0x" << std::hex << _act         \
                 << std::dec << std::endl;                                      \
       return 1;                                                                \
     }                                                                          \
@@ -372,10 +372,46 @@ static inline int32_t srai_rv32(int32_t a) {
 
   return result;
 }
+
+// ------------------------------------------------------------
+// U‑type instruction wrappers (RV32I)
+// ------------------------------------------------------------
+static inline int32_t lui_rv32(uint32_t imm20) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  bus->write(DRAM_BASE, 32, 0xABCDE537);
+  cpu->execute();
+  int32_t result = x->read(10);
+  return result;
+}
+
+static inline int32_t auipc_rv32(uint32_t imm20) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  bus->write(DRAM_BASE, 32, 0xABCDE517);
+  cpu->execute();
+  int32_t result = x->read(10);
+  return result;
+}
+
+// ------------------------------------------------------------
+// Expected-value helpers
+// ------------------------------------------------------------
+static inline int32_t expect_lui(uint32_t imm20) {
+  return static_cast<int32_t>(imm20 << 12);
+}
+
+static inline int32_t expect_auipc(uint32_t imm20) {
+  return static_cast<int32_t>(DRAM_BASE + (imm20 << 12));
+}
+
 int main() {
   int32_t a = 0x12345678, b = -12345;
   int32_t imm = 5;
   uint32_t shamt = imm & 0x3f;
+  uint32_t imm20 = 0xabcde;
 
   TEST_CASE("MUL", mul_rv32(a, b), (int32_t)((int64_t)a * (int64_t)b));
   TEST_CASE("MULH", mulh_rv32(a, b),
@@ -410,6 +446,9 @@ int main() {
   TEST_CASE("SLLI", slli_rv32(a), (int32_t)((uint32_t)a << shamt));
   TEST_CASE("SRLI", srli_rv32(a), (int32_t)((uint32_t)a >> shamt));
   TEST_CASE("SRAI", srai_rv32(a), (a >> shamt));
+
+  TEST_CASE("LUI", lui_rv32(imm20), expect_lui(imm20));
+  TEST_CASE("AUIPC", auipc_rv32(imm20), expect_auipc(imm20));
 
   std::cout << "All multiplication instruction tests passed!" << std::endl;
   return 0;
