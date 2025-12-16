@@ -24,10 +24,13 @@ void Bus::write(uint32_t addr, uint8_t size, uint32_t value) {
     switch (size) {
     case BYTE:
       write8(addr, value);
+      break;
     case HALFWORD:
       write16(addr, value);
+      break;
     case WORD:
       write32(addr, value);
+      break;
     }
   }
 }

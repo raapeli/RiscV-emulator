@@ -396,6 +396,111 @@ static inline int32_t auipc_rv32(uint32_t imm20) {
   return result;
 }
 
+// -----------------------------------------------------------
+// Load instruction wrappers
+// -----------------------------------------------------------
+static inline int32_t lb_rv32(int8_t memval) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  bus->write(DRAM_BASE + 1000, 32, memval);
+  x->write(11, DRAM_BASE + 500);
+  bus->write(DRAM_BASE, 32, 0x1F458603); // lb x12, 500(x11)
+  cpu->execute();
+  int32_t result = x->read(12);
+  return result;
+}
+
+static inline int32_t lh_rv32(int16_t memval) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  bus->write(DRAM_BASE + 1000, 32, memval);
+  x->write(11, DRAM_BASE + 500);
+  bus->write(DRAM_BASE, 32, 0x1F459603); // lh x12, 500(x11)
+  cpu->execute();
+  int32_t result = x->read(12);
+  return result;
+}
+
+static inline int32_t lw_rv32(int32_t memval) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  bus->write(DRAM_BASE + 1000, 32, memval);
+  x->write(11, DRAM_BASE + 500);
+  bus->write(DRAM_BASE, 32, 0x1F45A603); // lw x12, 500(x11)
+  cpu->execute();
+  int32_t result = x->read(12);
+  return result;
+}
+
+static inline int32_t lbu_rv32(uint8_t memval) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  bus->write(DRAM_BASE + 1000, 32, memval);
+  x->write(11, DRAM_BASE + 500);
+  bus->write(DRAM_BASE, 32, 0x1F45C603); // lbu x12, 500(x11)
+  cpu->execute();
+  int32_t result = x->read(12);
+  return result;
+}
+
+static inline int32_t lhu_rv32(uint16_t memval) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  bus->write(DRAM_BASE + 1000, 32, memval);
+  x->write(11, DRAM_BASE + 500);
+  bus->write(DRAM_BASE, 32, 0x1F45D603); // lhu x12, 500(x11)
+  cpu->execute();
+  int32_t result = x->read(12);
+  return result;
+}
+
+// ------------------------------------------------------------
+// Store instruction wrappers
+// ------------------------------------------------------------
+static inline uint32_t sb_rv32(uint8_t val) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(12, val);
+  x->write(11, DRAM_BASE + 500);
+  bus->write(DRAM_BASE + 1000, WORD, 0xBBBBBBBB);
+  bus->write(DRAM_BASE, 32, 0x1EC58A23); // sb x12, 500(x11)
+  cpu->execute();
+  int32_t result = bus->read(DRAM_BASE + 1000, WORD);
+  return result;
+}
+
+static inline uint32_t sh_rv32(uint16_t val) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(12, val);
+  x->write(11, DRAM_BASE + 500);
+  bus->write(DRAM_BASE + 1000, WORD, 0xBBBBBBBB);
+  bus->write(DRAM_BASE, 32, 0x1EC59A23); // sh x12, 500(x11)
+  cpu->execute();
+  int32_t result = bus->read(DRAM_BASE + 1000, WORD);
+  return result;
+}
+
+static inline uint32_t sw_rv32(uint32_t val) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(12, val);
+  x->write(11, DRAM_BASE + 500);
+  x->write(12, val);
+  bus->write(DRAM_BASE, 32, 0x1EC5AA23); // sw x12, 500(x11)
+  cpu->execute();
+  int32_t result = bus->read(DRAM_BASE + 1000, WORD);
+  return result;
+}
+
 // ------------------------------------------------------------
 // Expected-value helpers
 // ------------------------------------------------------------
@@ -450,6 +555,19 @@ int main() {
   TEST_CASE("LUI", lui_rv32(imm20), expect_lui(imm20));
   TEST_CASE("AUIPC", auipc_rv32(imm20), expect_auipc(imm20));
 
+  TEST_CASE("LB  positive", lb_rv32(0x7F), 0x0000007F);
+  TEST_CASE("LBU positive", lbu_rv32(0x7F), 0x0000007F);
+  TEST_CASE("LB  negative", lb_rv32(0x80), 0xFFFFFF80);
+  TEST_CASE("LBU negative", lbu_rv32(0x80), 0x00000080);
+  TEST_CASE("LH  positive", lh_rv32(0x7FFF), 0x00007FFF);
+  TEST_CASE("LHU positive", lhu_rv32(0x7FFF), 0x00007FFF);
+  TEST_CASE("LH  negative", lh_rv32(0x8000), 0xFFFF8000);
+  TEST_CASE("LHU negative", lhu_rv32(0x8000), 0x00008000);
+  TEST_CASE("LW", lw_rv32(0x87654321), 0x87654321);
+
+  TEST_CASE("SB", sb_rv32(0xAA), 0xBBBBBBAA);
+  TEST_CASE("SH", sh_rv32(0xAAAA), 0xBBBBAAAA);
+  TEST_CASE("SW", sw_rv32(0xDEADBEEF), 0xDEADBEEF);
   std::cout << "All multiplication instruction tests passed!" << std::endl;
   return 0;
 }
