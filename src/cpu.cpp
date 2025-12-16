@@ -49,8 +49,7 @@ int Cpu::executeGeneral(uint32_t inst) {
     uint32_t result;
     uint32_t reg1 = this->xregs->read(rs1);
     uint32_t reg2 = this->xregs->read(rs2);
-    if (funct7 & 0x1) {
-      // Multiplication
+    if (funct7 & 0x1) { // Multiplication
       switch (funct3) {
       case 0x00: { // mul
         DP("mul");
@@ -113,27 +112,61 @@ int Cpu::executeGeneral(uint32_t inst) {
         break;
       }
       }
-    }
-    switch (funct3) {
-    case 0x0: {
-      switch (funct7) {
-
-      case 0x0: { // add
-        DP("add");
-        result = reg1 + reg2;
+    } else { // non-multiplication
+      switch (funct3) {
+      case 0x0: {
+        if (funct7 == 0) { // add
+          DP("add");
+          result = (int32_t)(reg1 + reg2);
+        } else { // sub
+          DP("sub");
+          result = (int32_t)(reg1 - reg2);
+        }
         break;
       }
-      case 0x20: { // sub
-        DP("sub");
-        result = reg2 - reg1;
+      case 0x1: { // sll
+        DP("sll");
+        result = reg1 << (reg2 & 0x3f);
+        break;
+      }
+      case 0x2: { // slt
+        DP("sll");
+        result = ((int32_t)reg1 < (int32_t)reg2) ? 1 : 0;
+        break;
+      }
+      case 0x3: { // sltu
+        DP("sll");
+        result = (reg1 < reg2) ? 1 : 0;
+        break;
+      }
+      case 0x4: { // xor
+        DP("xor");
+        result = reg1 ^ reg2;
+        break;
+      }
+      case 0x5: {
+        if (funct7 == 0) { // srl
+          DP("srl");
+          result = (int32_t)reg1 >> (int32_t)(reg2 & 0x3f);
+        } else {
+          DP("sra");
+          result = reg1 >> (reg2 & 0x3f);
+        }
+        break;
+      }
+      case 0x6: { // or
+        DP("or");
+        result = reg1 | reg2;
+        break;
+      }
+      case 0x7: { // and
+        DP("or");
+        result = reg1 & reg2;
         break;
       }
       }
-      break;
     }
-    case 0x1:
-      switch (funct7) {}
-    }
+    // Finally write the result
     this->xregs->write(rd, result);
   }
   }
