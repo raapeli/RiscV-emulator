@@ -3,12 +3,45 @@
 #include <iostream>
 #include <sys/types.h>
 
-#define DEBUG
-
 #ifdef DEBUG
-#define DB(x) std::cerr << x << std::endl
+// ---- Bitfield extractors ----
+#define OPCODE(inst) ((inst) & 0x7F)
+#define RD(inst) (((inst) >> 7) & 0x1F)
+#define FUNCT3(inst) (((inst) >> 12) & 0x7)
+#define RS1(inst) (((inst) >> 15) & 0x1F)
+#define RS2(inst) (((inst) >> 20) & 0x1F)
+#define FUNCT7(inst) (((inst) >> 25) & 0x7F)
+
+// ---- Immediates for different types ----
+#define IMM_I(inst) ((int32_t)(inst) >> 20)
+#define IMM_S(inst)                                                            \
+  ((int32_t)(((inst) & 0xFE000000) >> 20) | (((inst) >> 7) & 0x1F))
+#define IMM_B(inst)                                                            \
+  ((int32_t)(((inst) >> 31) << 12) | (((inst) >> 7) & 0x1E) |                  \
+   (((inst) >> 20) & 0x7E0) | (((inst) >> 20) & 0x800 ? 0xFFFFF000 : 0))
+#define IMM_U(inst) ((int32_t)(inst) & 0xFFFFF000)
+#define IMM_J(inst)                                                            \
+  ((int32_t)(((inst) >> 31 ? 0xFFF00000 : 0) | (((inst) >> 12) & 0xFF) << 12 | \
+             ((inst) >> 20 & 1) << 11 | ((inst) >> 21 & 0x3FF) << 1 |          \
+             ((inst) >> 31) << 20))
+
+#define DB(inst, name)                                                         \
+  do {                                                                         \
+    std::cout << std::hex << "[DEBUG] " << (name) << " Instruction 0x"         \
+              << (inst) << std::dec << "\n"                                    \
+              << "  opcode: 0x" << std::hex << OPCODE(inst) << std::dec        \
+              << "  rd: x" << RD(inst) << "  rs1: x" << RS1(inst)              \
+              << "  rs2: x" << RS2(inst) << "\n"                               \
+              << "  funct3: " << FUNCT3(inst) << "  funct7: 0x" << std::hex    \
+              << FUNCT7(inst) << std::dec << "\n"                              \
+              << "  imm_I: " << IMM_I(inst) << "  imm_S: " << IMM_S(inst)      \
+              << "  imm_B: " << IMM_B(inst) << "  imm_U: 0x" << std::hex       \
+              << IMM_U(inst) << std::dec << "  imm_J: " << IMM_J(inst)         \
+              << "\n";                                                         \
+  } while (0)
+
 #else
-#define DB(x) ((void)0)
+#define DB(inst, x) ((void)0)
 #endif // DEBUG
 
 void XRegisters::write(uint32_t dest, uint32_t value) {
@@ -50,47 +83,47 @@ int Cpu::executeGeneral(uint32_t inst) {
     uint32_t result;
     switch (funct3) {
     case 0x0: { // addi
-      DB("addi");
+      DB(inst, "addi");
       result = (int32_t)(reg1) + imm;
       break;
     }
     case 0x2: { // slti
-      DB("slti");
+      DB(inst, "slti");
       result = ((int32_t)reg1 < imm);
       break;
     }
     case 0x3: { // sltiu
-      DB("sltiu");
+      DB(inst, "sltiu");
       result = (reg1 < imm);
       break;
     }
     case 0x4: { // xori
-      DB("XORI");
+      DB(inst, "XORI");
       result = reg1 ^ imm;
       break;
     }
     case 0x6: { // ori
-      DB("ori");
+      DB(inst, "ori");
       result = reg1 | imm;
       break;
     }
     case 0x7: { // andi
-      DB("andi");
+      DB(inst, "andi");
       result = reg1 & imm;
       break;
     }
     case 0x1: { // slli
-      DB("slli");
+      DB(inst, "slli");
       result = reg1 << (imm & 0x3F);
       break;
     }
     case 0x5: { // srli or srai
       // TODO: Add checks for illegal instructions
       if (funct7 >> 1) {
-        DB("srai");
+        DB(inst, "srai");
         result = reg1 >> (uint32_t)(imm & 0x3f);
       } else {
-        DB("srli");
+        DB(inst, "srli");
         result = (int32_t)reg1 >> (int32_t)(imm & 0x3F);
       }
       break;
@@ -106,29 +139,29 @@ int Cpu::executeGeneral(uint32_t inst) {
     if (funct7 & 0x1) { // Multiplication
       switch (funct3) {
       case 0x00: { // mul
-        DB("mul");
+        DB(inst, "mul");
         result = (int32_t)((int32_t)reg1 * (int32_t)reg2);
         break;
       }
       case 0x1: { // mulh
-        DB("mulh");
+        DB(inst, "mulh");
         result =
             (int32_t)(((uint64_t)(int32_t)reg1 * (uint64_t)(int32_t)reg2) >>
                       32);
         break;
       }
       case 0x2: { // mulhsu
-        DB("mulhsu");
+        DB(inst, "mulhsu");
         result = (int32_t)(((uint64_t)(int32_t)reg1 * (uint64_t)reg2) >> 32);
         break;
       }
       case 0x3: { // mulhu
-        DB("mulhu");
+        DB(inst, "mulhu");
         result = (int32_t)((uint64_t)reg1 * (uint64_t)reg2 >> 32);
         break;
       }
       case 0x4: { // div
-        DB("div");
+        DB(inst, "div");
         if (reg2 == 0) {
           result = -1;
           break;
@@ -141,7 +174,7 @@ int Cpu::executeGeneral(uint32_t inst) {
         break;
       }
       case 0x5: { // divu
-        DB("divu");
+        DB(inst, "divu");
         if (reg2 == 0) {
           result = UINT32_MAX;
         } else {
@@ -150,7 +183,7 @@ int Cpu::executeGeneral(uint32_t inst) {
         break;
       }
       case 0x6: { // rem
-        DB("rem");
+        DB(inst, "rem");
         if (reg2 == 0) {
           result = reg1;
         } else if ((int32_t)reg1 == INT32_MIN && (int32_t)reg2 == -1) {
@@ -161,7 +194,7 @@ int Cpu::executeGeneral(uint32_t inst) {
         break;
       }
       case 0x7: { // remu
-        DB("remu");
+        DB(inst, "remu");
         result = reg1 % reg2;
         break;
       }
@@ -171,51 +204,51 @@ int Cpu::executeGeneral(uint32_t inst) {
       case 0x0: {
         // TODO: Add checks for illegal instructions
         if (funct7 == 0) { // add
-          DB("add");
+          DB(inst, "add");
           result = (int32_t)(reg1 + reg2);
         } else { // sub
-          DB("sub");
+          DB(inst, "sub");
           result = (int32_t)(reg1 - reg2);
         }
         break;
       }
       case 0x1: { // sll
-        DB("sll");
+        DB(inst, "sll");
         result = reg1 << (reg2 & 0x3f);
         break;
       }
       case 0x2: { // slt
-        DB("sll");
+        DB(inst, "sll");
         result = ((int32_t)reg1 < (int32_t)reg2) ? 1 : 0;
         break;
       }
       case 0x3: { // sltu
-        DB("sll");
+        DB(inst, "sll");
         result = (reg1 < reg2) ? 1 : 0;
         break;
       }
       case 0x4: { // xor
-        DB("xor");
+        DB(inst, "xor");
         result = reg1 ^ reg2;
         break;
       }
       case 0x5: {
         if (funct7 == 0) { // srl
-          DB("srl");
+          DB(inst, "srl");
           result = (int32_t)reg1 >> (int32_t)(reg2 & 0x3f);
         } else {
-          DB("sra");
+          DB(inst, "sra");
           result = reg1 >> (reg2 & 0x3f);
         }
         break;
       }
       case 0x6: { // or
-        DB("or");
+        DB(inst, "or");
         result = reg1 | reg2;
         break;
       }
       case 0x7: { // and
-        DB("or");
+        DB(inst, "or");
         result = reg1 & reg2;
         break;
       }
@@ -226,13 +259,13 @@ int Cpu::executeGeneral(uint32_t inst) {
     break;
   }
   case 0x37: { // LUI
-    DB("lui");
+    DB(inst, "lui");
     int32_t imm = (inst & 0xfffff000);
     this->xregs->write(rd, imm);
     break;
   }
   case 0x17: { // auipc
-    DB("auipc");
+    DB(inst, "auipc");
     int32_t imm = (int32_t)((uint32_t)this->pc + (uint32_t)(inst & 0xfffff000));
     this->xregs->write(rd, imm);
     break;
@@ -243,31 +276,31 @@ int Cpu::executeGeneral(uint32_t inst) {
     int32_t imm = ((int32_t)inst >> 20);
     switch (funct3) {
     case 0x0: { // lb
-      DB("lb");
+      DB(inst, "lb");
       uint32_t addr = uint32_t(reg1 + imm);
       this->xregs->write(rd, (int32_t)(int8_t)this->bus->read(addr, BYTE));
       break;
     }
     case 0x1: { // lh
-      DB("lh");
+      DB(inst, "lh");
       uint32_t addr = uint32_t(reg1 + imm);
       this->xregs->write(rd, (int32_t)(int16_t)this->bus->read(addr, HALFWORD));
       break;
     }
     case 0x2: { // lw
-      DB("lw");
+      DB(inst, "lw");
       uint32_t addr = uint32_t(reg1 + imm);
       this->xregs->write(rd, (int32_t)this->bus->read(addr, WORD));
       break;
     }
     case 0x4: { // lbu
-      DB("lbu");
+      DB(inst, "lbu");
       uint32_t addr = uint32_t(reg1 + imm);
       this->xregs->write(rd, this->bus->read(addr, BYTE));
       break;
     }
     case 0x5: { // lhu
-      DB("lhu");
+      DB(inst, "lhu");
       uint32_t addr = uint32_t(reg1 + imm);
       this->xregs->write(rd, this->bus->read(addr, HALFWORD));
       break;
@@ -281,19 +314,19 @@ int Cpu::executeGeneral(uint32_t inst) {
     uint32_t reg2 = this->xregs->read(rs2);
     switch (funct3) {
     case 0x0: { // sb
-      DB("sb");
+      DB(inst, "sb");
       uint32_t dest = uint32_t(reg1 + imm);
       this->bus->write(dest, BYTE, reg2 & 0xff);
       break;
     }
     case 0x1: { // sh
-      DB("sh");
+      DB(inst, "sh");
       uint32_t dest = uint32_t(reg1 + imm);
       this->bus->write(dest, HALFWORD, reg2 & 0xffff);
       break;
     }
     case 0x2: { // sw
-      DB("sw");
+      DB(inst, "sw");
       uint32_t dest = uint32_t(reg1 + imm);
       this->bus->write(dest, WORD, reg2);
       break;
@@ -302,7 +335,7 @@ int Cpu::executeGeneral(uint32_t inst) {
     break;
   }
   case 0x6F: { // jal
-    DB("jal");
+    DB(inst, "jal");
     int32_t offset =
         (((inst >> 21) & 0x3FF) | (((inst >> 20) & 0x1) << 10) |
          (((inst >> 12) & 0xFF) << 11) | ((((int32_t)inst) >> 31)) << 19)
@@ -313,7 +346,7 @@ int Cpu::executeGeneral(uint32_t inst) {
     break;
   }
   case 0x67: { // jalr
-    DB("jalr");
+    DB(inst, "jalr");
     int32_t imm = ((int32_t)inst >> 20);
     uint32_t addr = (((this->xregs->read(rs1) + imm) >> 1) << 1);
     this->xregs->write(rd, this->pc + 4);
