@@ -354,6 +354,54 @@ int Cpu::executeGeneral(uint32_t inst) {
     this->pc = addr - 4;
     break;
   }
+  // TODO: Handle misalinged jumps
+  case 0x63: { // branches
+    int32_t imm =
+        (((inst >> 8) & 0xF) | (((inst >> 25) & 0x3F) << 4) |
+         (((inst >> 7) & 0x1) << 10) | ((((int32_t)inst) >> 31)) << 11)
+        << 1;
+    uint32_t reg1 = this->xregs->read(rs1);
+    uint32_t reg2 = this->xregs->read(rs2);
+    switch (funct3) {
+    case 0x0: { // beq
+      DB(inst, "beq");
+      if (reg1 == reg2)
+        this->pc += imm - 4;
+      break;
+    }
+    case 0x1: { // bne
+      DB(inst, "bne");
+      if (reg1 != reg2)
+        this->pc += imm - 4;
+      break;
+    }
+    case 0x4: { // blt
+      DB(inst, "blt");
+      if ((int32_t)reg1 < (int32_t)reg2)
+        this->pc += imm - 4;
+      break;
+    }
+    case 0x5: { // bge
+      DB(inst, "bge");
+      if ((int32_t)reg1 >= (int32_t)reg2)
+        this->pc += imm - 4;
+      break;
+    }
+    case 0x6: { // bltu
+      DB(inst, "bltu");
+      if (reg1 < reg2)
+        this->pc += imm - 4;
+      break;
+    }
+    case 0x7: { // bgeu
+      DB(inst, "bgeu");
+      if (reg1 >= reg2)
+        this->pc += imm - 4;
+      break;
+    }
+    }
+    break;
+  } // TODO: FENCE FENCE.TSO PAUSE ECALL EBREAK
   }
   return 1;
 }
