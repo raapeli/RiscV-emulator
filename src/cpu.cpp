@@ -299,7 +299,28 @@ int Cpu::executeGeneral(uint32_t inst) {
       break;
     }
     }
-  } break;
+    break;
+  }
+  case 0x6F: { // jal
+    DB("jal");
+    int32_t offset =
+        (((inst >> 21) & 0x3FF) | (((inst >> 20) & 0x1) << 10) |
+         (((inst >> 12) & 0xFF) << 11) | ((((int32_t)inst) >> 31)) << 19)
+        << 1;
+    this->xregs->write(rd, this->pc + 4);
+    // TODO: Handle misalinged jumps
+    this->pc += offset - 4;
+    break;
+  }
+  case 0x67: { // jalr
+    DB("jalr");
+    int32_t imm = ((int32_t)inst >> 20);
+    uint32_t addr = (((this->xregs->read(rs1) + imm) >> 1) << 1);
+    this->xregs->write(rd, this->pc + 4);
+    // TODO: Handle misalinged jumps
+    this->pc = addr - 4;
+    break;
+  }
   }
   return 1;
 }

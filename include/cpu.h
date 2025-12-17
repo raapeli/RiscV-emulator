@@ -24,13 +24,12 @@ public:
   Cpu(XRegisters *xregs, Bus *bus);
   int execute();
   ~Cpu();
+  // Program counter
+  uint32_t pc = DRAM_BASE;
 
 private:
   XRegisters *xregs;
   Bus *bus;
-
-  // Program counter
-  uint32_t pc = DRAM_BASE;
 
   uint32_t fetch();
   int executeGeneral(uint32_t inst);
