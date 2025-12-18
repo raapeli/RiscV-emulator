@@ -1,8 +1,9 @@
 #pragma once
 
 #include "bus.h"
+#include "exception.h"
 
-#include <cstdint>
+#include <expected>
 
 #define REGISTER_COUNT 32
 
@@ -19,18 +20,22 @@ private:
   uint32_t registers[REGISTER_COUNT] = {};
 };
 
+enum class Mode { USER = 0, SUPERVISOR = 01, MACHINE = 3 };
+
 class Cpu {
 public:
   Cpu(XRegisters *xregs, Bus *bus);
-  int execute();
+  std::expected<uint32_t, Exception> execute();
   ~Cpu();
   // Program counter
   uint32_t pc = DRAM_BASE;
+  // Privilege level
+  Mode mode = Mode::MACHINE;
 
 private:
   XRegisters *xregs;
   Bus *bus;
 
   uint32_t fetch();
-  int executeGeneral(uint32_t inst);
+  std::expected<uint32_t, Exception> executeGeneral(uint32_t inst);
 };

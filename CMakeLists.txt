@@ -14,6 +14,7 @@ add_executable(RiscV
   src/parser.cpp
   src/bus.cpp
   src/cpu.cpp
+  src/exception.cpp
 )
 
 add_library(emulator src/cpu.cpp src/bus.cpp)

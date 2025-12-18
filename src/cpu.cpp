@@ -1,7 +1,5 @@
 #include "cpu.h"
-#include <cstdint>
 #include <iostream>
-#include <sys/types.h>
 
 #ifdef DEBUG
 // ---- Bitfield extractors ----
@@ -59,15 +57,17 @@ Cpu::Cpu(XRegisters *xregs, Bus *bus) {
 
 uint32_t Cpu::fetch() { return bus->read(pc, WORD); }
 
-int Cpu::execute() {
+std::expected<uint32_t, Exception> Cpu::execute() {
   uint32_t inst = this->fetch();
-  this->executeGeneral(inst);
+  auto result = this->executeGeneral(inst);
+  if (!result)
+    return result;
   this->pc += 4;
 
-  return 0;
+  return result;
 }
 
-int Cpu::executeGeneral(uint32_t inst) {
+std::expected<uint32_t, Exception> Cpu::executeGeneral(uint32_t inst) {
 
   uint32_t opcode = inst & 0x7f;
   uint32_t rd = (inst >> 7) & 0x1F;
@@ -118,16 +118,19 @@ int Cpu::executeGeneral(uint32_t inst) {
       break;
     }
     case 0x5: { // srli or srai
-      // TODO: Add checks for illegal instructions
-      if (funct7 >> 1) {
+      if (funct7 == 0x20) {
         DB(inst, "srai");
         result = reg1 >> (uint32_t)(imm & 0x3f);
-      } else {
+      } else if (funct7 == 0) {
         DB(inst, "srli");
         result = (int32_t)reg1 >> (int32_t)(imm & 0x3F);
+      } else {
+        return std::unexpected(Exception::IllegalInstruction);
       }
       break;
     }
+    default:
+      return std::unexpected(Exception::IllegalInstruction);
     }
     this->xregs->write(rd, result);
     break;
@@ -198,6 +201,8 @@ int Cpu::executeGeneral(uint32_t inst) {
         result = reg1 % reg2;
         break;
       }
+      default:
+        return std::unexpected(Exception::IllegalInstruction);
       }
     } else { // non-multiplication
       switch (funct3) {
@@ -206,9 +211,11 @@ int Cpu::executeGeneral(uint32_t inst) {
         if (funct7 == 0) { // add
           DB(inst, "add");
           result = (int32_t)(reg1 + reg2);
-        } else { // sub
+        } else if (funct7) { // sub
           DB(inst, "sub");
           result = (int32_t)(reg1 - reg2);
+        } else {
+          return std::unexpected(Exception::IllegalInstruction);
         }
         break;
       }
@@ -236,9 +243,11 @@ int Cpu::executeGeneral(uint32_t inst) {
         if (funct7 == 0) { // srl
           DB(inst, "srl");
           result = (int32_t)reg1 >> (int32_t)(reg2 & 0x3f);
-        } else {
+        } else if (funct7 == 0x20) {
           DB(inst, "sra");
           result = reg1 >> (reg2 & 0x3f);
+        } else {
+          return std::unexpected(Exception::IllegalInstruction);
         }
         break;
       }
@@ -252,6 +261,8 @@ int Cpu::executeGeneral(uint32_t inst) {
         result = reg1 & reg2;
         break;
       }
+      default:
+        return std::unexpected(Exception::IllegalInstruction);
       }
     }
     // Finally write the result
@@ -305,9 +316,12 @@ int Cpu::executeGeneral(uint32_t inst) {
       this->xregs->write(rd, this->bus->read(addr, HALFWORD));
       break;
     }
+    default:
+      return std::unexpected(Exception::IllegalInstruction);
     }
     break;
   }
+  // TODO: Add exceptions for store operations
   case 0x23: { // store operations
     int32_t imm = rd | ((((int32_t)inst) >> 25) << 5);
     uint32_t reg1 = this->xregs->read(rs1);
@@ -331,6 +345,8 @@ int Cpu::executeGeneral(uint32_t inst) {
       this->bus->write(dest, WORD, reg2);
       break;
     }
+    default:
+      return std::unexpected(Exception::IllegalInstruction);
     }
     break;
   }
@@ -399,9 +415,13 @@ int Cpu::executeGeneral(uint32_t inst) {
         this->pc += imm - 4;
       break;
     }
+    default:
+      return std::unexpected(Exception::IllegalInstruction);
     }
     break;
   } // TODO: FENCE FENCE.TSO PAUSE ECALL EBREAK
+  default:
+    return std::unexpected(Exception::IllegalInstruction);
   }
-  return 1;
+  return inst;
 }
