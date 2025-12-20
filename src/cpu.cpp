@@ -1,5 +1,8 @@
 #include "cpu.h"
+#include "exception.h"
+#include <concepts>
 #include <cstdint>
+#include <expected>
 
 #ifdef DEBUG
 // ---- Bitfield extractors ----
@@ -61,8 +64,10 @@ uint64_t Cpu::fetch() { return bus->read(pc, WORD); }
 std::expected<uint64_t, Exception::ExceptionValue> Cpu::execute() {
   uint64_t inst = this->fetch();
   auto result = this->executeGeneral(inst);
-  if (!result)
+  if (!result) {
+    DB(inst, "unexpected");
     return result;
+  }
   this->pc += 4;
 
   return result;
@@ -79,6 +84,40 @@ Cpu::executeGeneral(uint64_t inst) {
   uint64_t funct7 = (inst >> 25) & 0x7F;
 
   switch (opcode) {
+  case 0x1B: { // Integer register-immediate w-versions
+    int64_t imm = ((int64_t)inst >> 20);
+    uint64_t reg1 = this->xregs->read(rs1);
+    uint64_t result;
+    switch (funct3) {
+    case 0x0: { // addiw
+      DB(inst, "addiw");
+      result = (uint64_t)(int32_t)((int32_t)reg1 + imm);
+      break;
+    }
+    case 0x2: { // slliw
+      DB(inst, "slliw");
+      result = (int64_t)(reg1 << (imm & 0x3F));
+      break;
+    }
+    case 0x5: {             // srliw or sraiw
+      if (funct7 == 0x20) { // sraiw
+        DB(inst, "sraiw");
+        result = (int64_t)((uint32_t)reg1 >> (uint64_t)(imm & 0x3F));
+      } else if (funct7 == 0) {
+        DB(inst, "srliw");
+        result = (int64_t)((int32_t)reg1 >> (int64_t)(imm & 0x3F));
+      } else {
+        return std::unexpected(Exception::IllegalInstruction);
+      }
+      break;
+    }
+    default:
+      return std::unexpected(Exception::IllegalInstruction);
+    }
+
+    this->xregs->write(rd, result);
+    break;
+  }
   case 0x13: { // Integer register-immediate
     int64_t imm = ((int64_t)inst >> 20);
     uint64_t reg1 = this->xregs->read(rs1);
@@ -122,7 +161,7 @@ Cpu::executeGeneral(uint64_t inst) {
     case 0x5: { // srli or srai
       if (funct7 == 0x20) {
         DB(inst, "srai");
-        result = reg1 >> (uint64_t)(imm & 0x3f);
+        result = reg1 >> (uint64_t)(imm & 0x3F);
       } else if (funct7 == 0) {
         DB(inst, "srli");
         result = (int64_t)reg1 >> (int64_t)(imm & 0x3F);
@@ -133,6 +172,94 @@ Cpu::executeGeneral(uint64_t inst) {
     }
     default:
       return std::unexpected(Exception::IllegalInstruction);
+    }
+    this->xregs->write(rd, result);
+    break;
+  }
+  case 0x3B: { // Integer register-register w-versions and RV64M
+    uint64_t result;
+    uint64_t reg1 = this->xregs->read(rs1);
+    uint64_t reg2 = this->xregs->read(rs2);
+    if (funct7 & 0x1) { // Multiplication
+      switch (funct3) {
+      case 0x0: { // mulw
+        DB(inst, "mulw");
+        result = (uint64_t)(int32_t)((int32_t)reg1 * (int32_t)reg2);
+        break;
+      }
+      case 0x4: { // divw
+        DB(inst, "divw");
+        if (reg2 == 0) {
+          result = -1;
+        } else if ((int32_t)reg1 == INT32_MIN && (int32_t)reg2 == -1) {
+          result = INT32_MIN;
+        } else {
+          result = (uint64_t)(int32_t)((int32_t)reg1 / (int32_t)reg2);
+        }
+        break;
+      }
+      case 0x5: { // divuw
+        DB(inst, "divuw");
+        if (reg2 == 0) {
+          result = -1;
+        } else {
+          result = (uint64_t)(int32_t)((uint32_t)reg1 / (uint32_t)reg2);
+        }
+        break;
+      }
+      case 0x6: { // remw
+        DB(inst, "remw");
+        if (reg2 == 0) {
+          result = (uint64_t)(int32_t)reg1;
+        } else {
+          result = (uint64_t)(int32_t)((int32_t)reg1 % (int32_t)reg2);
+        }
+        break;
+      }
+      case 0x7: { // remuw
+        DB(inst, "remuw");
+        if (reg2 == 0) {
+          result = (uint64_t)(int32_t)reg1;
+        } else {
+          result = (uint64_t)(int32_t)((uint32_t)reg1 % (uint32_t)reg2);
+        }
+        break;
+      }
+      }
+    } else { // int register-register
+      switch (funct3) {
+      case 0x0: {          // addw or subw
+        if (funct7 == 0) { // addw
+          DB(inst, "addw");
+          result = (uint64_t)(int32_t)((int32_t)reg1 + (int32_t)reg2);
+        } else if (funct7 == 0x20) { // sub
+          DB(inst, "addw");
+          result = (uint64_t)(int32_t)((int32_t)reg1 - (int32_t)reg2);
+        } else {
+          return std::unexpected(Exception::IllegalInstruction);
+        }
+        break;
+      }
+      case 0x1: { // sllw
+        DB(inst, "sllw");
+        result = (int64_t)((int32_t)reg1 << (reg2 & 0x1F));
+        break;
+      }
+      case 0x5: {          // srlw or sraw
+        if (funct7 == 0) { // srlw
+          DB(inst, "srlw");
+          result = (int64_t)((int32_t)reg1 >> (reg2 & 0x1F));
+        } else if (funct7 == 0x20) { // sraw
+          DB(inst, "sraw");
+          result = (int64_t)((uint32_t)reg1 >> (uint32_t)(reg2 & 0x1F));
+        } else {
+          return std::unexpected(Exception::IllegalInstruction);
+        }
+        break;
+      }
+      default:
+        return std::unexpected(Exception::IllegalInstruction);
+      }
     }
     this->xregs->write(rd, result);
     break;
@@ -212,7 +339,6 @@ Cpu::executeGeneral(uint64_t inst) {
     } else { // non-multiplication
       switch (funct3) {
       case 0x0: {
-        // TODO: Add checks for illegal instructions
         if (funct7 == 0) { // add
           DB(inst, "add");
           result = (int64_t)(reg1 + reg2);
@@ -248,7 +374,7 @@ Cpu::executeGeneral(uint64_t inst) {
         if (funct7 == 0) { // srl
           DB(inst, "srl");
           result = (int64_t)reg1 >> (int64_t)(reg2 & 0x3f);
-        } else if (funct7 == 0x20) {
+        } else if (funct7 == 0x20) { // sra
           DB(inst, "sra");
           result = reg1 >> (reg2 & 0x3f);
         } else {
@@ -286,7 +412,7 @@ Cpu::executeGeneral(uint64_t inst) {
     this->xregs->write(rd, imm);
     break;
   }
-    // TODO: Add exceptions for load operations
+  // TODO: Add exceptions for load operations
   case 0x3: { // load operations
     uint64_t reg1 = this->xregs->read(rs1);
     int64_t imm = ((int64_t)inst >> 20);

@@ -484,6 +484,165 @@ static inline int64_t lhu_rv64(uint16_t memval) {
 }
 
 // ------------------------------------------------------------
+// W-instruction wrappers
+// ------------------------------------------------------------
+
+static inline uint64_t addw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x00C5853b); // addw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t subw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x40C5853B); // subw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t sllw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x00C5953B); // sllw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+inline uint64_t srlw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x00C5D53B); // srlw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t sraw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x40C5D53B); // sraw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t mulw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x02C5853B); // mulw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t divw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x02C5C53B); // divw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t divuw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x02C5D53B); // divuw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t remw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x02C5E53B); // remw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t remuw_rv64(int64_t a, int64_t b) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  x->write(12, b);
+  bus->write(DRAM_BASE, 32, 0x02C5F53B); // remuw x10, x11, x12
+  cpu->execute();
+  return x->read(10);
+}
+
+// W-Extension Immediate (rs1=11, rd=10)
+static inline uint64_t addiw_rv64(int64_t a, int64_t imm) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  bus->write(DRAM_BASE, 32,
+             0x0005851B | ((imm & 0xFFF) << 20)); // addiw x10, x11, imm
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t slliw_rv64(int64_t a, int64_t shamt) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  bus->write(DRAM_BASE, 32,
+             0x0005C51B | ((shamt & 0x1F) << 20)); // slliw x10, x11, shamt
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t srliw_rv64(int64_t a, int64_t shamt) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  bus->write(DRAM_BASE, 32,
+             0x0005D51B | ((shamt & 0x1F) << 20)); // srliw x10, x11, shamt
+  cpu->execute();
+  return x->read(10);
+}
+
+static inline uint64_t sraiw_rv64(int64_t a, int64_t shamt) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(11, a);
+  bus->write(DRAM_BASE, 32,
+             0x4005D51B | ((shamt & 0x1F) << 20)); // sraiw x10, x11, shamt
+  cpu->execute();
+  return x->read(10);
+}
+
+// ------------------------------------------------------------
 // Store instruction wrappers
 // ------------------------------------------------------------
 static inline uint64_t sb_rv64(uint8_t val) {
@@ -553,6 +712,8 @@ int main() {
   int64_t imm = 5;
   uint64_t shamt = imm & 0x3f;
   uint64_t imm20 = 0xabcde;
+  int64_t a32w = 0x50502323, b32w = 0xFFFF8245;
+  uint32_t imm32w = 123;
 
   TEST_CASE("MUL", mul_rv64(a, b), (int64_t)(a * b));
   TEST_CASE("MULH", mulh_rv64(a, b),
@@ -590,6 +751,40 @@ int main() {
   TEST_CASE("SLLI", slli_rv64(a), (int64_t)((uint64_t)a << shamt));
   TEST_CASE("SRLI", srli_rv64(a), (int64_t)((uint64_t)a >> shamt));
   TEST_CASE("SRAI", srai_rv64(a), (a >> shamt));
+
+  TEST_CASE("ADDW", addw_rv64(a32w, b32w),
+            (uint64_t)(int32_t)((int32_t)a32w + (int32_t)b32w));
+  TEST_CASE("SUBW", subw_rv64(a32w, b32w),
+            (uint64_t)(int32_t)((int32_t)a32w - (int32_t)b32w));
+  TEST_CASE("SLLW", sllw_rv64(a32w, b32w),
+            (uint64_t)(int32_t)((uint32_t)a32w << (b32w & 0x1F)));
+  TEST_CASE("SRLW", srlw_rv64(a32w, b32w),
+            (uint64_t)((uint32_t)a32w >> (b32w & 0x1F)));
+  TEST_CASE("SRAW", sraw_rv64(a32w, b32w),
+            (uint64_t)(int32_t)((int32_t)a32w >> (b32w & 0x1F)));
+
+  TEST_CASE("MULW", mulw_rv64(a32w, b32w),
+            (uint64_t)(int32_t)((int64_t)a32w * (int64_t)b32w));
+
+  TEST_CASE("DIVW", divw_rv64(a32w, b32w),
+            (uint64_t)(int32_t)((int32_t)a32w / (int32_t)b32w));
+  TEST_CASE("DIVUW", divuw_rv64(a32w, b32w),
+            (uint64_t)((uint32_t)a32w / (uint32_t)b32w));
+  TEST_CASE("REMW", remw_rv64(a32w, b32w),
+            (uint64_t)(int32_t)((int32_t)a32w % (int32_t)b32w));
+  TEST_CASE("REMUW", remuw_rv64(a32w, b32w),
+            (uint64_t)((uint32_t)a32w % (uint32_t)b32w));
+
+  TEST_CASE("ADDIW positive", addiw_rv64(a32w, imm32w),
+            (uint64_t)(int32_t)((int64_t)a32w + imm32w));
+  TEST_CASE("ADDIW negative", addiw_rv64(-1, imm32w),
+            (uint64_t)(int32_t)((int64_t)-1 + imm32w));
+  TEST_CASE("SLLIW", slliw_rv64(a32w, imm32w),
+            (uint64_t)(int32_t)((uint64_t)a32w << imm32w));
+  TEST_CASE("SRLIW", srliw_rv64(a32w, imm32w),
+            (uint64_t)((uint32_t)a32w >> imm32w));
+  TEST_CASE("SRAIW", sraiw_rv64(a32w, imm32w),
+            (uint64_t)(int32_t)((int32_t)a32w >> imm32w));
 
   TEST_CASE("LUI", lui_rv64(), expect_lui(imm20));
   TEST_CASE("AUIPC", auipc_rv64(), expect_auipc(imm20));
