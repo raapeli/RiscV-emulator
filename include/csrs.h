@@ -5,12 +5,12 @@
 
 namespace csr {
 
-const uint32_t MXLEN = 32;
+const uint32_t MXLEN = 64;
 // Count of CSRs
-const uint32_t CSR_SIZE = 4096;
+const uint64_t CSR_SIZE = 4096;
 
 struct Address {
-  enum AddressValues : uint32_t {
+  enum AddressValues : uint64_t {
     // Unprivileged floating‑point CSRs
     FFLAGS = 0x001,
     FRM = 0x002,
@@ -102,7 +102,7 @@ struct Address {
 };
 
 struct Mask {
-  enum SSTATUS_MASK : uint32_t {
+  enum SSTATUS_MASK : uint64_t {
     SIE = 1U << 1U,
     SPIE = 1U << 5U,
     UBE = 1U << 6U,
@@ -111,12 +111,14 @@ struct Mask {
     XS = 0x18000U,
     SUM = 1U << 18U,
     MXR = 1U << 19U,
+    UXL = 0x300000000ULL,
+    SD = 1ULL << 63ULL,
 
-    SSTATUS = SIE | SPIE | UBE | SPP | FS | XS | SUM | MXR,
+    SSTATUS = SIE | SPIE | UBE | SPP | FS | XS | SUM | MXR | UXL | SD,
   };
-  enum class SSTATUSBit : uint32_t { SIE = 1, SPIE = 5, SPP = 8 };
+  enum class SSTATUSBit : uint64_t { SIE = 1, SPIE = 5, SPP = 8 };
 
-  enum class MSTATUSBit : uint32_t {
+  enum class MSTATUSBit : uint64_t {
     MIE = 3,
     MPIE = 7,
     MPP = 12,
@@ -129,7 +131,7 @@ struct Mask {
 };
 
 struct Misa {
-  enum Extension : uint32_t {
+  enum Extension : uint64_t {
     A_EXT = 1U << 0U,
     C_EXT = 1U << 2U,
     D_EXT = 1U << 3U,
@@ -145,6 +147,7 @@ struct Misa {
     NON_STD_PRESENT = 1U << 22U,
 
     XLEN_32 = 1U << 31U,
+    XLEN_64 = 2ULL << 62U
   };
 };
 
@@ -152,24 +155,24 @@ class Csr {
 public:
   Csr();
 
-  uint32_t load(uint32_t addr);
-  void store(uint32_t, uint32_t value);
+  uint64_t load(uint64_t addr);
+  void store(uint64_t addr, uint64_t value);
 
-  uint32_t read_bit(uint32_t addr, uint32_t offset);
-  uint32_t read_bits(uint32_t addr, uint32_t upper_offset,
-                     uint32_t lower_offset);
+  uint64_t read_bit(uint64_t addr, uint64_t offset);
+  uint64_t read_bits(uint64_t addr, uint64_t upper_offset,
+                     uint64_t lower_offset);
 
-  void write_bit(uint32_t addr, uint32_t offset, uint32_t value);
-  void write_bits(uint32_t addr, uint32_t upper_offset, uint32_t lower_offset,
-                  uint32_t value);
+  void write_bit(uint64_t addr, uint64_t offset, uint64_t value);
+  void write_bits(uint64_t addr, uint64_t upper_offset, uint64_t lower_offset,
+                  uint64_t value);
 
-  uint32_t read_bit_mstatus(Mask::MSTATUSBit bit);
-  void write_bit_mstatus(Mask::MSTATUSBit bit, uint32_t value);
+  uint64_t read_bit_mstatus(Mask::MSTATUSBit bit);
+  void write_bit_mstatus(Mask::MSTATUSBit bit, uint64_t value);
 
-  uint32_t read_bit_sstatus(Mask::SSTATUSBit bit);
-  void write_bit_sstatus(Mask::SSTATUSBit bit, uint32_t value);
+  uint64_t read_bit_sstatus(Mask::SSTATUSBit bit);
+  void write_bit_sstatus(Mask::SSTATUSBit bit, uint64_t value);
 
-  std::array<uint32_t, CSR_SIZE> regs = {};
+  std::array<uint64_t, CSR_SIZE> regs = {};
 };
 
 } // namespace csr

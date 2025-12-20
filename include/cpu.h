@@ -4,6 +4,7 @@
 #include "csrs.h"
 #include "exception.h"
 
+#include <array>
 #include <expected>
 
 #define REGISTER_COUNT 32
@@ -11,14 +12,15 @@
 const uint8_t BYTE = 8;
 const uint8_t HALFWORD = 16;
 const uint8_t WORD = 32;
+const uint8_t DOUBLEWORD = 64;
 
 class XRegisters {
 public:
-  void write(uint32_t rd, uint32_t value);
-  uint32_t read(uint32_t reg);
+  void write(uint64_t rd, uint64_t value);
+  uint64_t read(uint64_t reg);
 
 private:
-  uint32_t registers[REGISTER_COUNT] = {};
+  std::array<uint64_t, REGISTER_COUNT> registers = {};
 };
 
 enum class Mode { USER = 0, SUPERVISOR = 01, MACHINE = 3 };
@@ -26,10 +28,10 @@ enum class Mode { USER = 0, SUPERVISOR = 01, MACHINE = 3 };
 class Cpu {
 public:
   Cpu(XRegisters *xregs, Bus *bus);
-  std::expected<uint32_t, Exception::ExceptionValue> execute();
+  std::expected<uint64_t, Exception::ExceptionValue> execute();
   ~Cpu();
   // Program counter
-  uint32_t pc = DRAM_BASE;
+  uint64_t pc = DRAM_BASE;
   // Privilege level
   Mode mode = Mode::MACHINE;
   csr::Csr cregs;
@@ -38,7 +40,7 @@ private:
   XRegisters *xregs;
   Bus *bus;
 
-  uint32_t fetch();
-  std::expected<uint32_t, Exception::ExceptionValue>
-  executeGeneral(uint32_t inst);
+  uint64_t fetch();
+  std::expected<uint64_t, Exception::ExceptionValue>
+  executeGeneral(uint64_t inst);
 };

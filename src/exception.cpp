@@ -3,7 +3,7 @@
 #include "csrs.h"
 #include <cstdint>
 
-uint32_t Exception::epc(uint32_t pc) {
+uint64_t Exception::epc(uint64_t pc) {
   if (exception == 3 || (exception <= 12 && exception >= 8))
     return pc;
   return pc + 4;
@@ -11,7 +11,7 @@ uint32_t Exception::epc(uint32_t pc) {
 
 Trap Exception::take_trap(Cpu *cpu) {
 
-  uint32_t ex_pc = epc(cpu->pc);
+  uint64_t ex_pc = epc(cpu->pc);
   Mode mode = cpu->mode;
 
   bool medeleg_f = (cpu->cregs.load(csr::Address::MEDELEG) >> exception) & 1;
@@ -32,7 +32,7 @@ Trap Exception::take_trap(Cpu *cpu) {
         cpu->cregs.read_bit_sstatus(csr::Mask::SSTATUSBit::SIE));
     cpu->cregs.write_bit_sstatus(csr::Mask::SSTATUSBit::SIE, 0);
     cpu->cregs.write_bit_sstatus(csr::Mask::SSTATUSBit::SPP,
-                                 static_cast<uint32_t>(mode));
+                                 static_cast<uint64_t>(mode));
   } else {
     cpu->mode = Mode::MACHINE;
 
@@ -47,7 +47,7 @@ Trap Exception::take_trap(Cpu *cpu) {
         cpu->cregs.read_bit_mstatus(csr::Mask::MSTATUSBit::MIE));
     cpu->cregs.write_bit_mstatus(csr::Mask::MSTATUSBit::MIE, 0);
     cpu->cregs.write_bits(csr::Address::MSTATUS, 12, 11,
-                          static_cast<uint32_t>(mode));
+                          static_cast<uint64_t>(mode));
   }
   return Trap::Fatal;
 }

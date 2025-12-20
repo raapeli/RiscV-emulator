@@ -4,7 +4,7 @@
 
 class Cpu;
 
-enum class Trap : uint32_t {
+enum class Trap : uint64_t {
   // Visible and handled inside execution environment
   Contained,
   // Requesting action on behalf of software inside the execution environment
@@ -16,7 +16,7 @@ enum class Trap : uint32_t {
 };
 
 struct Exception {
-  enum ExceptionValue : uint32_t {
+  enum ExceptionValue : uint64_t {
     // Synchronous exceptions (Interrupt bit = 0)
     InstructionAddressMisaligned = 0,
     InstructionAccessFault = 1,
@@ -38,7 +38,7 @@ struct Exception {
 
   ExceptionValue exception;
 
-  uint32_t epc(uint32_t pc);
-  uint32_t trap_value(uint32_t pc);
+  uint64_t epc(uint64_t pc);
+  uint64_t trap_value(uint64_t pc);
   Trap take_trap(Cpu *cpu);
 };
