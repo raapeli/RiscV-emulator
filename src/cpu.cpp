@@ -1,4 +1,5 @@
 #include "cpu.h"
+#include "csrs.h"
 #include <iostream>
 
 #ifdef DEBUG
@@ -57,7 +58,7 @@ Cpu::Cpu(XRegisters *xregs, Bus *bus) {
 
 uint32_t Cpu::fetch() { return bus->read(pc, WORD); }
 
-std::expected<uint32_t, Exception> Cpu::execute() {
+std::expected<uint32_t, Exception::ExceptionValue> Cpu::execute() {
   uint32_t inst = this->fetch();
   auto result = this->executeGeneral(inst);
   if (!result)
@@ -67,7 +68,8 @@ std::expected<uint32_t, Exception> Cpu::execute() {
   return result;
 }
 
-std::expected<uint32_t, Exception> Cpu::executeGeneral(uint32_t inst) {
+std::expected<uint32_t, Exception::ExceptionValue>
+Cpu::executeGeneral(uint32_t inst) {
 
   uint32_t opcode = inst & 0x7f;
   uint32_t rd = (inst >> 7) & 0x1F;
