@@ -435,6 +435,30 @@ static inline int64_t lw_rv64(int64_t memval) {
   return result;
 }
 
+static inline int64_t lwu_rv64(int64_t memval) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  bus->write(DRAM_BASE + 1000, 32, memval);
+  x->write(11, DRAM_BASE + 500);
+  bus->write(DRAM_BASE, 32, 0x1F45e603); // lwu x12, 500(x11)
+  cpu->execute();
+  int64_t result = x->read(12);
+  return result;
+}
+
+static inline int64_t ld_rv64(int64_t memval) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  bus->write(DRAM_BASE + 1000, 64, memval);
+  x->write(11, DRAM_BASE + 500);
+  bus->write(DRAM_BASE, 32, 0x1F45b603); // ld x12, 500(x11)
+  cpu->execute();
+  int64_t result = x->read(12);
+  return result;
+}
+
 static inline int64_t lbu_rv64(uint8_t memval) {
   Bus *bus = new Bus();
   XRegisters *x = new XRegisters();
@@ -501,6 +525,18 @@ static inline uint64_t sw_rv64(uint64_t val) {
   return result;
 }
 
+static inline uint64_t sd_rv64(uint64_t val) {
+  Bus *bus = new Bus();
+  XRegisters *x = new XRegisters();
+  Cpu *cpu = new Cpu(x, bus);
+  x->write(12, val);
+  x->write(11, DRAM_BASE + 500);
+  x->write(12, val);
+  bus->write(DRAM_BASE, 32, 0x1EC5BA23); // sw x12, 500(x11)
+  cpu->execute();
+  int64_t result = bus->read(DRAM_BASE + 1000, DOUBLEWORD);
+  return result;
+}
 // ------------------------------------------------------------
 // Expected-value helpers
 // ------------------------------------------------------------
@@ -558,19 +594,30 @@ int main() {
   TEST_CASE("LUI", lui_rv64(), expect_lui(imm20));
   TEST_CASE("AUIPC", auipc_rv64(), expect_auipc(imm20));
 
-  TEST_CASE("LB  positive", lb_rv64(0x7F), 0x0000007F);
-  TEST_CASE("LBU positive", lbu_rv64(0x7F), 0x0000007F);
+  TEST_CASE("LB  positive", lb_rv64(0x7F), 0x000000000000007F);
+  TEST_CASE("LBU positive", lbu_rv64(0x7F), 0x000000000000007F);
   TEST_CASE("LB  negative", lb_rv64(0x80), (int64_t)0xFFFFFFFFFFFFFF80);
-  TEST_CASE("LBU negative", lbu_rv64(0x80), 0x00000080);
-  TEST_CASE("LH  positive", lh_rv64(0x7FFF), 0x00007FFF);
-  TEST_CASE("LHU positive", lhu_rv64(0x7FFF), 0x00007FFF);
+  TEST_CASE("LBU negative", lbu_rv64(0x80), 0x0000000000000080);
+
+  TEST_CASE("LH  positive", lh_rv64(0x7FFF), 0x0000000000007FFF);
+  TEST_CASE("LHU positive", lhu_rv64(0x7FFF), 0x0000000000007FFF);
   TEST_CASE("LH  negative", lh_rv64(0x8000), (int64_t)0xFFFFFFFFFFFF8000);
-  TEST_CASE("LHU negative", lhu_rv64(0x8000), 0x00008000);
-  TEST_CASE("LW", lw_rv64(0x87654321), (int64_t)0xFFFFFFFF87654321);
+  TEST_CASE("LHU negative", lhu_rv64(0x8000), 0x0000000000008000);
+
+  TEST_CASE("LW positive", lw_rv64(0x87654321), (int64_t)0xFFFFFFFF87654321);
+  TEST_CASE("LW negative", lw_rv64(0xF2345678), (int64_t)0xFFFFFFFFF2345678);
+
+  TEST_CASE("LWU positive", lwu_rv64(0x87654321), 0x0000000087654321);
+  TEST_CASE("LWU negative", lwu_rv64(0xF2345678), 0x00000000F2345678);
+
+  TEST_CASE("LD positive", ld_rv64(0x123456789ABCDEF0), 0x123456789ABCDEF0);
+  TEST_CASE("LD negative", ld_rv64(0xF23456789ABCDEF0),
+            (int64_t)0xF23456789ABCDEF0);
 
   TEST_CASE("SB", sb_rv64(0xAA), 0xFFFFFFFFBBBBBBAA);
   TEST_CASE("SH", sh_rv64(0xAAAA), 0xFFFFFFFFBBBBAAAA);
   TEST_CASE("SW", sw_rv64(0xDEADBEEF), 0xFFFFFFFFDEADBEEF);
+  TEST_CASE("SD", sd_rv64(0xDEADBEEFDEADBEEF), 0xDEADBEEFDEADBEEF);
   std::cout << "All multiplication instruction tests passed!" << std::endl;
   return 0;
 }

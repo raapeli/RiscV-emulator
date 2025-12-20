@@ -1,4 +1,5 @@
 #include "cpu.h"
+#include <cstdint>
 
 #ifdef DEBUG
 // ---- Bitfield extractors ----
@@ -305,7 +306,7 @@ Cpu::executeGeneral(uint64_t inst) {
     case 0x2: { // lw
       DB(inst, "lw");
       uint64_t addr = uint64_t(reg1 + imm);
-      this->xregs->write(rd, (int64_t)this->bus->read(addr, WORD));
+      this->xregs->write(rd, (int64_t)(int32_t)this->bus->read(addr, WORD));
       break;
     }
     case 0x4: { // lbu
@@ -318,6 +319,18 @@ Cpu::executeGeneral(uint64_t inst) {
       DB(inst, "lhu");
       uint64_t addr = uint64_t(reg1 + imm);
       this->xregs->write(rd, this->bus->read(addr, HALFWORD));
+      break;
+    }
+    case 0x6: { // lwu
+      DB(inst, "lwu");
+      uint64_t addr = uint64_t(reg1 + imm);
+      this->xregs->write(rd, (this->bus->read(addr, WORD) & 0xFFFFFFFF));
+      break;
+    }
+    case 0x3: { // ld
+      DB(inst, "ld");
+      uint64_t addr = uint64_t(reg1 + imm);
+      this->xregs->write(rd, this->bus->read(addr, DOUBLEWORD));
       break;
     }
     default:
@@ -347,6 +360,12 @@ Cpu::executeGeneral(uint64_t inst) {
       DB(inst, "sw");
       uint64_t dest = uint64_t(reg1 + imm);
       this->bus->write(dest, WORD, reg2);
+      break;
+    }
+    case 0x3: { // sd
+      DB(inst, "sd");
+      uint64_t dest = uint64_t(reg1 + imm);
+      this->bus->write(dest, DOUBLEWORD, reg2);
       break;
     }
     default:
