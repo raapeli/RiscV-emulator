@@ -376,7 +376,7 @@ static inline int32_t srai_rv32(int32_t a) {
 // ------------------------------------------------------------
 // U‑type instruction wrappers (RV32I)
 // ------------------------------------------------------------
-static inline int32_t lui_rv32(uint32_t imm20) {
+static inline int32_t lui_rv32() {
   Bus *bus = new Bus();
   XRegisters *x = new XRegisters();
   Cpu *cpu = new Cpu(x, bus);
@@ -386,7 +386,7 @@ static inline int32_t lui_rv32(uint32_t imm20) {
   return result;
 }
 
-static inline int32_t auipc_rv32(uint32_t imm20) {
+static inline int32_t auipc_rv32() {
   Bus *bus = new Bus();
   XRegisters *x = new XRegisters();
   Cpu *cpu = new Cpu(x, bus);
@@ -537,7 +537,7 @@ int main() {
   TEST_CASE("SLT", slt_rv32(a, b), ((a < b) ? 1 : 0));
   TEST_CASE("SLTU", sltu_rv32(a, b), ((uint32_t)a < (uint32_t)b ? 1 : 0));
   TEST_CASE("XOR", xor_rv32(a, b), (a ^ b));
-  TEST_CASE("SRL", srl_rv32(a, b), ((uint32_t)a >> (b & 0x3F)));
+  TEST_CASE("SRL", srl_rv32(a, b), (int32_t)((uint32_t)a >> (b & 0x3F)));
   TEST_CASE("SRA", sra_rv32(a, b), (a >> (b & 0x3F)));
   TEST_CASE("OR", or_rv32(a, b), (a | b));
   TEST_CASE("AND", and_rv32(a, b), (a & b));
@@ -552,18 +552,18 @@ int main() {
   TEST_CASE("SRLI", srli_rv32(a), (int32_t)((uint32_t)a >> shamt));
   TEST_CASE("SRAI", srai_rv32(a), (a >> shamt));
 
-  TEST_CASE("LUI", lui_rv32(imm20), expect_lui(imm20));
-  TEST_CASE("AUIPC", auipc_rv32(imm20), expect_auipc(imm20));
+  TEST_CASE("LUI", lui_rv32(), expect_lui(imm20));
+  TEST_CASE("AUIPC", auipc_rv32(), expect_auipc(imm20));
 
   TEST_CASE("LB  positive", lb_rv32(0x7F), 0x0000007F);
   TEST_CASE("LBU positive", lbu_rv32(0x7F), 0x0000007F);
-  TEST_CASE("LB  negative", lb_rv32(0x80), 0xFFFFFF80);
+  TEST_CASE("LB  negative", lb_rv32(0x80), (int32_t)0xFFFFFF80);
   TEST_CASE("LBU negative", lbu_rv32(0x80), 0x00000080);
   TEST_CASE("LH  positive", lh_rv32(0x7FFF), 0x00007FFF);
   TEST_CASE("LHU positive", lhu_rv32(0x7FFF), 0x00007FFF);
-  TEST_CASE("LH  negative", lh_rv32(0x8000), 0xFFFF8000);
+  TEST_CASE("LH  negative", lh_rv32(0x8000), (int32_t)0xFFFF8000);
   TEST_CASE("LHU negative", lhu_rv32(0x8000), 0x00008000);
-  TEST_CASE("LW", lw_rv32(0x87654321), 0x87654321);
+  TEST_CASE("LW", lw_rv32(0x87654321), (int32_t)0x87654321);
 
   TEST_CASE("SB", sb_rv32(0xAA), 0xBBBBBBAA);
   TEST_CASE("SH", sh_rv32(0xAAAA), 0xBBBBAAAA);

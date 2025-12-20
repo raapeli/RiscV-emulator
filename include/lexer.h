@@ -1,4 +1,7 @@
+#pragma once
+
 #include "token.h"
+#include <cstdint>
 
 class Lexer {
 
@@ -8,8 +11,8 @@ public:
 
 private:
   std::string source;
-  int pos; // Pos of next char to read;
-  char ch; // Current char;
+  uint64_t pos; // Pos of next char to read
+  char ch;      // Current char
   void NextChar();
   bool IsPunct();
   bool IsAlpha();
