@@ -128,6 +128,21 @@ struct Mask {
     TVM = 20,
     TSR = 22,
   };
+  enum Bit : uint64_t {
+    SSIP_BIT = 1ULL,
+    MSIP_BIT = 3ULL,
+    STIP_BIT = 5ULL,
+    MTIP_BIT = 7ULL,
+    SEIP_BIT = 9ULL,
+    MEIP_BIT = 11ULL,
+
+    SSIP = 1ULL << SSIP_BIT,
+    MSIP = 1ULL << MSIP_BIT,
+    STIP = 1ULL << STIP_BIT,
+    MTIP = 1ULL << MTIP_BIT,
+    SEIP = 1ULL << SEIP_BIT,
+    MEIP = 1ULL << MEIP_BIT,
+  };
 };
 
 struct Misa {

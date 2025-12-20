@@ -1,7 +1,6 @@
 #include "exception.h"
 #include "cpu.h"
 #include "csrs.h"
-#include <cstdint>
 
 uint64_t Exception::epc(uint64_t pc) {
   if (exception == 3 || (exception <= 12 && exception >= 8))

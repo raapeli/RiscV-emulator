@@ -1,8 +1,9 @@
 #include "cpu.h"
+#include "csrs.h"
 #include "exception.h"
-#include <concepts>
+#include "interrupt.h"
 #include <cstdint>
-#include <expected>
+#include <optional>
 
 #ifdef DEBUG
 // ---- Bitfield extractors ----
@@ -60,6 +61,46 @@ Cpu::Cpu(XRegisters *xregs, Bus *bus) {
 }
 
 uint64_t Cpu::fetch() { return bus->read(pc, WORD); }
+
+std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
+  if (this->mode == Mode::MACHINE) {
+    if (this->cregs.read_bit_mstatus(csr::Mask::MSTATUSBit::MIE) == 0)
+      return std::nullopt;
+  } else if (this->mode == Mode::SUPERVISOR) {
+    if (this->cregs.read_bit_sstatus(csr::Mask::SSTATUSBit::SIE) == 0)
+      return std::nullopt;
+  }
+
+  uint64_t mie = this->cregs.load(csr::Address::MIE);
+  uint64_t mip = this->cregs.load(csr::Address::MIP);
+
+  uint64_t pending = mie & mip;
+
+  if (pending == 0) {
+    return std::nullopt;
+  }
+  if (pending & csr::Mask::MEIP) {
+    this->cregs.write_bit(csr::Address::MIP, csr::Mask::MEIP_BIT, 0);
+    return Interrupt::MachineExternalInterrupt;
+  } else if (pending & csr::Mask::MSIP) {
+    this->cregs.write_bit(csr::Address::MIP, csr::Mask::MSIP_BIT, 0);
+    return Interrupt::MachineSoftwareInterrupt;
+  } else if (pending & csr::Mask::MTIP) {
+    this->cregs.write_bit(csr::Address::MIP, csr::Mask::MTIP_BIT, 0);
+    return Interrupt::MachineTimerInterrupt;
+  } else if (pending & csr::Mask::SEIP_BIT) {
+    this->cregs.write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
+    return Interrupt::SupervisorExternalInterrupt;
+  } else if (pending & csr::Mask::SSIP) {
+    this->cregs.write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
+    return Interrupt::SupervisorExternalInterrupt;
+  } else if (pending & csr::Mask::STIP) {
+    this->cregs.write_bit(csr::Address::MIP, csr::Mask::STIP_BIT, 0);
+    return Interrupt::SupervisorTimerInterrupt;
+  }
+
+  return std::nullopt;
+}
 
 std::expected<uint64_t, Exception::ExceptionValue> Cpu::execute() {
   uint64_t inst = this->fetch();

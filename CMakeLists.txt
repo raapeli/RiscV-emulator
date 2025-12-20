@@ -16,6 +16,7 @@ add_executable(RiscV
   src/cpu.cpp
   src/exception.cpp
   src/csrs.cpp
+  src/interrupt.cpp
 )
 
 add_library(emulator src/cpu.cpp src/bus.cpp src/csrs.cpp)
