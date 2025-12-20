@@ -31,8 +31,7 @@ Trap Exception::take_trap(Cpu *cpu) {
         csr::Mask::SSTATUSBit::SPIE,
         cpu->cregs.read_bit_sstatus(csr::Mask::SSTATUSBit::SIE));
     cpu->cregs.write_bit_sstatus(csr::Mask::SSTATUSBit::SIE, 0);
-    cpu->cregs.write_bit_sstatus(csr::Mask::SSTATUSBit::SPP,
-                                 static_cast<uint64_t>(mode));
+    cpu->cregs.write_bit_sstatus(csr::Mask::SSTATUSBit::SPP, mode);
   } else {
     cpu->mode = Mode::MACHINE;
 
@@ -46,8 +45,37 @@ Trap Exception::take_trap(Cpu *cpu) {
         csr::Mask::MSTATUSBit::MPIE,
         cpu->cregs.read_bit_mstatus(csr::Mask::MSTATUSBit::MIE));
     cpu->cregs.write_bit_mstatus(csr::Mask::MSTATUSBit::MIE, 0);
-    cpu->cregs.write_bits(csr::Address::MSTATUS, 12, 11,
-                          static_cast<uint64_t>(mode));
+    cpu->cregs.write_bits(csr::Address::MSTATUS, 12, 11, mode);
   }
-  return Trap::Fatal;
+
+  switch (exception) {
+  case Exception::InstructionAddressMisaligned:
+  case Exception::InstructionAccessFault:
+    return Trap::Fatal;
+
+  case Exception::IllegalInstruction:
+    return Trap::Invisible;
+
+  case Exception::Breakpoint:
+    return Trap::Requested;
+
+  case Exception::LoadAddressMisaligned:
+  case Exception::LoadAccessFault:
+  case Exception::StoreAmoAddressMisaligned:
+  case Exception::StoreAmoAccessFault:
+    return Trap::Fatal;
+
+  case Exception::EnvironmentCallUmode:
+  case Exception::EnvironmentCallSmode:
+  case Exception::EnvironmentCallMmode:
+    return Trap::Requested;
+
+  case Exception::InstructionPageFault:
+  case Exception::LoadPageFault:
+  case Exception::StoreAmoPageFault:
+    return Trap::Invisible;
+
+  default:
+    return Trap::Fatal; // or handle other cases
+  }
 }

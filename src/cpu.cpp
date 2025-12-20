@@ -1,5 +1,4 @@
 #include "cpu.h"
-#include "csrs.h"
 
 #ifdef DEBUG
 // ---- Bitfield extractors ----

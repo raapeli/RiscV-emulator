@@ -17,9 +17,6 @@ int main(int argc, char *argv[]) {
                      std::istreambuf_iterator<char>());
   source += '\n';
 
-  Lexer *l = new Lexer(source);
-  Parser *p = new Parser(l);
-  p->Parse();
   std::cout << "Parsed succesfully\n";
 
   return 0;

@@ -5,6 +5,7 @@
 #include "exception.h"
 
 #include <array>
+#include <cstdint>
 #include <expected>
 
 #define REGISTER_COUNT 32
@@ -23,7 +24,7 @@ private:
   std::array<uint64_t, REGISTER_COUNT> registers = {};
 };
 
-enum class Mode { USER = 0, SUPERVISOR = 01, MACHINE = 3 };
+enum Mode : uint64_t { USER = 0, SUPERVISOR = 01, MACHINE = 3 };
 
 class Cpu {
 public:
