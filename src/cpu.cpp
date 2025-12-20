@@ -94,7 +94,7 @@ int Cpu::executeGeneral(uint32_t inst) {
     }
     case 0x3: { // sltiu
       DB(inst, "sltiu");
-      result = (reg1 < imm);
+      result = (reg1 < (uint32_t)imm);
       break;
     }
     case 0x4: { // xori
