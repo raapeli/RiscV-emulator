@@ -634,6 +634,22 @@ Cpu::executeGeneral(uint64_t inst) {
     }
     break;
   } // TODO: FENCE FENCE.TSO PAUSE ECALL EBREAK
+  case 0x73: {        // ECALL EBREAK
+    if (inst >> 20) { // ebreak
+      DB(inst, "ebreak");
+      return std::unexpected(Exception::Breakpoint);
+    } else { // ecall
+      DB(inst, "ecall");
+      switch (mode) {
+      case Mode::MACHINE:
+        return std::unexpected(Exception::EnvironmentCallMmode);
+      case Mode::SUPERVISOR:
+        return std::unexpected(Exception::EnvironmentCallSmode);
+      case Mode::USER:
+        return std::unexpected(Exception::EnvironmentCallUmode);
+      }
+    }
+  }
   default:
     return std::unexpected(Exception::IllegalInstruction);
   }
