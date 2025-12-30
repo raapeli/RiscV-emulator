@@ -35,7 +35,6 @@ class Cpu {
 public:
   Cpu(XRegisters *xregs, Bus *bus);
   std::expected<uint64_t, Exception::ExceptionValue> execute();
-  ~Cpu();
   // Program counter
   uint64_t pc = DRAM_BASE;
   // Privilege level
@@ -43,6 +42,8 @@ public:
   csr::Csr cregs;
 
   std::optional<Interrupt::InterruptValue> check_pending_interrupt();
+
+  void start();
 
   Interrupt state;
   Exception exception;

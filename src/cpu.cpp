@@ -1,9 +1,4 @@
 #include "cpu.h"
-#include "csrs.h"
-#include "exception.h"
-#include "interrupt.h"
-#include <cstdint>
-#include <optional>
 
 #ifdef DEBUG
 // ---- Bitfield extractors ----
@@ -39,8 +34,8 @@
               << FUNCT7(inst) << std::dec << "\n"                              \
               << "  imm_I: " << IMM_I(inst) << "  imm_S: " << IMM_S(inst)      \
               << "  imm_B: " << IMM_B(inst) << "  imm_U: 0x" << std::hex       \
-              << IMM_U(inst) << std::dec << "  imm_J: " << IMM_J(inst)         \
-              << "\n";                                                         \
+              << IMM_U(inst) << std::dec << "  imm_J: " << IMM_J(inst) << "\n" \
+              << "PC: " << std::hex << this->pc << "\n";                       \
   } while (0)
 
 #else
@@ -64,15 +59,15 @@ uint64_t Cpu::fetch() { return bus->read(pc, WORD); }
 
 std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
   if (this->mode == Mode::MACHINE) {
-    if (this->cregs.read_bit_mstatus(csr::Mask::MSTATUSBit::MIE) == 0)
+    if (cregs.read_bit_mstatus(csr::Mask::MSTATUSBit::MIE) == 0)
       return std::nullopt;
   } else if (this->mode == Mode::SUPERVISOR) {
-    if (this->cregs.read_bit_sstatus(csr::Mask::SSTATUSBit::SIE) == 0)
+    if (cregs.read_bit_sstatus(csr::Mask::SSTATUSBit::SIE) == 0)
       return std::nullopt;
   }
 
-  uint64_t mie = this->cregs.load(csr::Address::MIE);
-  uint64_t mip = this->cregs.load(csr::Address::MIP);
+  uint64_t mie = cregs.load(csr::Address::MIE);
+  uint64_t mip = cregs.load(csr::Address::MIP);
 
   uint64_t pending = mie & mip;
 
@@ -80,36 +75,65 @@ std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
     return std::nullopt;
   }
   if (pending & csr::Mask::MEIP) {
-    this->cregs.write_bit(csr::Address::MIP, csr::Mask::MEIP_BIT, 0);
+    cregs.write_bit(csr::Address::MIP, csr::Mask::MEIP_BIT, 0);
     return Interrupt::MachineExternalInterrupt;
   } else if (pending & csr::Mask::MSIP) {
-    this->cregs.write_bit(csr::Address::MIP, csr::Mask::MSIP_BIT, 0);
+    cregs.write_bit(csr::Address::MIP, csr::Mask::MSIP_BIT, 0);
     return Interrupt::MachineSoftwareInterrupt;
   } else if (pending & csr::Mask::MTIP) {
-    this->cregs.write_bit(csr::Address::MIP, csr::Mask::MTIP_BIT, 0);
+    cregs.write_bit(csr::Address::MIP, csr::Mask::MTIP_BIT, 0);
     return Interrupt::MachineTimerInterrupt;
   } else if (pending & csr::Mask::SEIP_BIT) {
-    this->cregs.write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
+    cregs.write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
     return Interrupt::SupervisorExternalInterrupt;
   } else if (pending & csr::Mask::SSIP) {
-    this->cregs.write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
+    cregs.write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
     return Interrupt::SupervisorExternalInterrupt;
   } else if (pending & csr::Mask::STIP) {
-    this->cregs.write_bit(csr::Address::MIP, csr::Mask::STIP_BIT, 0);
+    cregs.write_bit(csr::Address::MIP, csr::Mask::STIP_BIT, 0);
     return Interrupt::SupervisorTimerInterrupt;
   }
 
   return std::nullopt;
 }
 
+void Cpu::start() {
+
+  while (1) {
+    // Tick time
+    cregs.store(csr::Address::CYCLE, cregs.load(csr::Address::CYCLE) + 1);
+
+    // Take an interrupt
+    auto interrupt = this->check_pending_interrupt();
+    if (interrupt.has_value()) {
+      state.cause = interrupt.value();
+      state.take_trap(this);
+    }
+
+    Trap trap;
+    auto exc_val = this->execute();
+    if (!exc_val.has_value()) {
+      exception.exception = exc_val.error();
+      trap = exception.take_trap(this);
+    } else {
+      trap = Trap::Requested;
+    }
+    if (trap != Trap::Requested)
+      std::cin.ignore(10, '\n');
+    if (trap == Trap::Fatal) {
+      std::cout << "Fatal trap";
+      return;
+    }
+  }
+}
 std::expected<uint64_t, Exception::ExceptionValue> Cpu::execute() {
   uint64_t inst = this->fetch();
   auto result = this->executeGeneral(inst);
+  this->pc += 4;
   if (!result) {
     DB(inst, "unexpected");
     return result;
   }
-  this->pc += 4;
 
   return result;
 }

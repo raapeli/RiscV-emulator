@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_compile_options(-ggdb3 -Wall -Wextra -Wpedantic -fcolor-diagnostics -DDEBUG)
+add_compile_options(-ggdb3 -Wall -Wextra -Wpedantic -fcolor-diagnostics
+      -DDEBUG -std=c++23)
 add_executable(RiscV
   src/main.cpp
   src/lexer.cpp
@@ -19,7 +20,8 @@ add_executable(RiscV
   src/interrupt.cpp
 )
 
-add_library(emulator src/cpu.cpp src/bus.cpp src/csrs.cpp)
+add_library(emulator src/cpu.cpp src/bus.cpp src/csrs.cpp src/exception.cpp
+            src/interrupt.cpp)
 target_include_directories(emulator PUBLIC include)
 
 target_include_directories(RiscV
