@@ -22,14 +22,18 @@ A Risc-V emulator built in modern C++23.
 
 ```
 $ git clone https://github.com/raapeli/RiscV-emulator.git
-$ cmake -S . -B build
+$ cmake -S . -B build -DCMAKE_CXX_COMPILER=clang++
+$ cd build && make
 ```
+
+
+## Usage
+
+Run the program RiscV with an argument to a RiscV binary with no headers.
 
 Run tests with
 
 ``` 
-cmake test 
+cmake test
 ```
 
-
-You cannot yet load your own binaries to the emulator

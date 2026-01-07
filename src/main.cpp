@@ -38,6 +38,6 @@ int main(int argc, char *argv[]) {
     bus->write(DRAM_BASE + i, BYTE, data[i]);
   }
 
-  cpu->oneTick();
+  cpu->start();
   return 0;
 }
