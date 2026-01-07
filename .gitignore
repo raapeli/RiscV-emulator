@@ -6,3 +6,4 @@
 build/
 !.gitignore
 !*.md
+!.gitmodules
