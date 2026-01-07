@@ -32,13 +32,12 @@ int main(int argc, char *argv[]) {
   file.close();
 
   Bus *bus = new Bus();
-  XRegisters *xregs = new XRegisters();
-  Cpu *cpu = new Cpu(xregs, bus);
+  Cpu *cpu = new Cpu(bus);
 
   for (unsigned long i = 0; i < data.size(); i++) {
     bus->write(DRAM_BASE + i, BYTE, data[i]);
   }
 
-  cpu->start();
+  cpu->oneTick();
   return 0;
 }

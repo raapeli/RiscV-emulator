@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <sstream>
 
 #define REGISTER_COUNT 32
 
@@ -33,26 +34,27 @@ enum Mode : uint64_t { USER = 0, SUPERVISOR = 01, MACHINE = 3 };
 
 class Cpu {
 public:
-  Cpu(XRegisters *xregs, Bus *bus);
-  std::expected<uint64_t, Exception::ExceptionValue> execute();
+  Cpu(Bus *bus);
+  std::expected<uint64_t, Exception::ExceptionValue>
+  execute(std::stringstream *ss = nullptr);
   // Program counter
   uint64_t pc = DRAM_BASE;
-  // Privilege level
+  uint64_t prev_inst = 0L; // Privilege level
   Mode mode = Mode::MACHINE;
-  csr::Csr cregs;
+  csr::Csr *cregs;
 
   std::optional<Interrupt::InterruptValue> check_pending_interrupt();
 
   void start();
+  void oneTick(std::stringstream *debug_stream = nullptr);
 
   Interrupt state;
   Exception exception;
-
-private:
   XRegisters *xregs;
   Bus *bus;
 
+private:
   uint64_t fetch();
   std::expected<uint64_t, Exception::ExceptionValue>
-  executeGeneral(uint64_t inst);
+  executeGeneral(uint64_t inst, std::stringstream *ss = nullptr);
 };

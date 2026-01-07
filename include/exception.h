@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 class Cpu;
 
@@ -34,11 +35,15 @@ struct Exception {
     LoadPageFault = 13,
     // 14 reserved
     StoreAmoPageFault = 15,
+    // No exception
+    None = 99,
   };
 
-  ExceptionValue exception;
+  ExceptionValue exception = Exception::None;
 
   uint64_t epc(uint64_t pc);
   uint64_t trap_value(uint64_t pc);
   Trap take_trap(Cpu *cpu);
+
+  std::string get_exception_str(Exception::ExceptionValue excpt);
 };

@@ -1,8 +1,10 @@
 #include "cpu.h"
+#include "csrs.h"
+#include "exception.h"
+#include <cstdint>
 
 #ifdef DEBUG
 // ---- Bitfield extractors ----
-#include <iostream>
 #define OPCODE(inst) ((inst) & 0x7F)
 #define RD(inst) (((inst) >> 7) & 0x1F)
 #define FUNCT3(inst) (((inst) >> 12) & 0x7)
@@ -23,23 +25,25 @@
              ((inst) >> 20 & 1) << 11 | ((inst) >> 21 & 0x3FF) << 1 |          \
              ((inst) >> 31) << 20))
 
-#define DB(inst, name)                                                         \
+#define DB(ss, inst, name)                                                     \
   do {                                                                         \
-    std::cout << std::hex << "[DEBUG] " << (name) << " Instruction 0x"         \
-              << (inst) << std::dec << "\n"                                    \
-              << "  opcode: 0x" << std::hex << OPCODE(inst) << std::dec        \
-              << "  rd: x" << RD(inst) << "  rs1: x" << RS1(inst)              \
-              << "  rs2: x" << RS2(inst) << "\n"                               \
-              << "  funct3: " << FUNCT3(inst) << "  funct7: 0x" << std::hex    \
-              << FUNCT7(inst) << std::dec << "\n"                              \
-              << "  imm_I: " << IMM_I(inst) << "  imm_S: " << IMM_S(inst)      \
-              << "  imm_B: " << IMM_B(inst) << "  imm_U: 0x" << std::hex       \
-              << IMM_U(inst) << std::dec << "  imm_J: " << IMM_J(inst) << "\n" \
-              << "PC: " << std::hex << this->pc << "\n";                       \
+    if (ss) {                                                                  \
+      *ss << std::hex << "[DEBUG] " << (name) << " Instruction 0x" << (inst)   \
+          << std::dec << "\n"                                                  \
+          << "  opcode: 0x" << std::hex << OPCODE(inst) << std::dec            \
+          << "  rd: x" << RD(inst) << "  rs1: x" << RS1(inst) << "  rs2: x"    \
+          << RS2(inst) << "\n"                                                 \
+          << "  funct3: " << FUNCT3(inst) << "  funct7: 0x" << std::hex        \
+          << FUNCT7(inst) << std::dec << "\n"                                  \
+          << "  imm_I: " << IMM_I(inst) << "  imm_S: " << IMM_S(inst)          \
+          << "  imm_B: " << IMM_B(inst) << "  imm_U: 0x" << std::hex           \
+          << IMM_U(inst) << std::dec << "  imm_J: " << IMM_J(inst) << "\n"     \
+          << "PC: " << std::hex << this->pc << "\n";                           \
+    }                                                                          \
   } while (0)
 
 #else
-#define DB(inst, x) ((void)0)
+#define DB(ss, inst, x) ((void)0)
 #endif // DEBUG
 
 void XRegisters::write(uint64_t dest, uint64_t value) {
@@ -50,24 +54,25 @@ void XRegisters::write(uint64_t dest, uint64_t value) {
 
 uint64_t XRegisters::read(uint64_t reg) { return this->registers[reg]; }
 
-Cpu::Cpu(XRegisters *xregs, Bus *bus) {
-  this->xregs = xregs;
+Cpu::Cpu(Bus *bus) {
+  this->xregs = new XRegisters();
   this->bus = bus;
+  this->cregs = new csr::Csr();
 }
 
 uint64_t Cpu::fetch() { return bus->read(pc, WORD); }
 
 std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
   if (this->mode == Mode::MACHINE) {
-    if (cregs.read_bit_mstatus(csr::Mask::MSTATUSBit::MIE) == 0)
+    if (cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MIE) == 0)
       return std::nullopt;
   } else if (this->mode == Mode::SUPERVISOR) {
-    if (cregs.read_bit_sstatus(csr::Mask::SSTATUSBit::SIE) == 0)
+    if (cregs->read_bit_sstatus(csr::Mask::SSTATUSBit::SIE) == 0)
       return std::nullopt;
   }
 
-  uint64_t mie = cregs.load(csr::Address::MIE);
-  uint64_t mip = cregs.load(csr::Address::MIP);
+  uint64_t mie = cregs->load(csr::Address::MIE);
+  uint64_t mip = cregs->load(csr::Address::MIP);
 
   uint64_t pending = mie & mip;
 
@@ -75,22 +80,22 @@ std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
     return std::nullopt;
   }
   if (pending & csr::Mask::MEIP) {
-    cregs.write_bit(csr::Address::MIP, csr::Mask::MEIP_BIT, 0);
+    cregs->write_bit(csr::Address::MIP, csr::Mask::MEIP_BIT, 0);
     return Interrupt::MachineExternalInterrupt;
   } else if (pending & csr::Mask::MSIP) {
-    cregs.write_bit(csr::Address::MIP, csr::Mask::MSIP_BIT, 0);
+    cregs->write_bit(csr::Address::MIP, csr::Mask::MSIP_BIT, 0);
     return Interrupt::MachineSoftwareInterrupt;
   } else if (pending & csr::Mask::MTIP) {
-    cregs.write_bit(csr::Address::MIP, csr::Mask::MTIP_BIT, 0);
+    cregs->write_bit(csr::Address::MIP, csr::Mask::MTIP_BIT, 0);
     return Interrupt::MachineTimerInterrupt;
   } else if (pending & csr::Mask::SEIP_BIT) {
-    cregs.write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
+    cregs->write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
     return Interrupt::SupervisorExternalInterrupt;
   } else if (pending & csr::Mask::SSIP) {
-    cregs.write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
+    cregs->write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
     return Interrupt::SupervisorExternalInterrupt;
   } else if (pending & csr::Mask::STIP) {
-    cregs.write_bit(csr::Address::MIP, csr::Mask::STIP_BIT, 0);
+    cregs->write_bit(csr::Address::MIP, csr::Mask::STIP_BIT, 0);
     return Interrupt::SupervisorTimerInterrupt;
   }
 
@@ -98,53 +103,63 @@ std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
 }
 
 void Cpu::start() {
-
   while (1) {
-    // Tick time
-    cregs.store(csr::Address::CYCLE, cregs.load(csr::Address::CYCLE) + 1);
-
-    // Take an interrupt
-    auto interrupt = this->check_pending_interrupt();
-    if (interrupt.has_value()) {
-      state.cause = interrupt.value();
-      state.take_trap(this);
-    }
-
-    Trap trap;
-    auto exc_val = this->execute();
-    if (!exc_val.has_value()) {
-      exception.exception = exc_val.error();
-      trap = exception.take_trap(this);
-    } else {
-      trap = Trap::Requested;
-    }
-    if (trap != Trap::Requested)
-      std::cin.ignore(10, '\n');
-    if (trap == Trap::Fatal) {
-      std::cout << "Fatal trap";
-      return;
-    }
+    oneTick();
   }
 }
-std::expected<uint64_t, Exception::ExceptionValue> Cpu::execute() {
+
+void Cpu::oneTick(std::stringstream *debug_str) {
+
+  // Tick time
+  cregs->store(csr::Address::CYCLE, cregs->load(csr::Address::CYCLE) + 1);
+
+  // Take an interrupt
+  auto interrupt = this->check_pending_interrupt();
+  if (interrupt.has_value()) {
+    state.cause = interrupt.value();
+    state.take_trap(this);
+  }
+
+  Trap trap;
+  auto exc_val = this->execute(debug_str);
+  if (!exc_val.has_value()) {
+    exception.exception = exc_val.error();
+    trap = exception.take_trap(this);
+  } else {
+    trap = Trap::Requested;
+  }
+  // if (trap != Trap::Requested)
+  //   std::cin.ignore(10, '\n');
+  if (trap == Trap::Fatal) {
+    if (debug_str)
+      *debug_str << "Fatal trap";
+    return;
+  }
+
+  //  exception.exception = Exception::None;
+}
+std::expected<uint64_t, Exception::ExceptionValue>
+Cpu::execute(std::stringstream *ss) {
   uint64_t inst = this->fetch();
-  auto result = this->executeGeneral(inst);
-  this->pc += 4;
+  auto result = this->executeGeneral(inst, ss);
+  prev_inst = inst;
   if (!result) {
-    DB(inst, "unexpected");
+    // DB(ss, inst, "unexpected");
     return result;
   }
+  this->pc += 4;
 
   return result;
 }
 
 std::expected<uint64_t, Exception::ExceptionValue>
-Cpu::executeGeneral(uint64_t inst) {
+Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
 
   uint64_t opcode = inst & 0x7f;
   uint64_t rd = (inst >> 7) & 0x1F;
   uint64_t rs1 = (inst >> 15) & 0x1F;
   uint64_t rs2 = (inst >> 20) & 0x1F;
+  uint64_t csrAddr = (inst >> 20) & 0xFFF;
   uint64_t funct3 = (inst >> 12) & 0x7;
   uint64_t funct7 = (inst >> 25) & 0x7F;
 
@@ -155,21 +170,21 @@ Cpu::executeGeneral(uint64_t inst) {
     uint64_t result;
     switch (funct3) {
     case 0x0: { // addiw
-      DB(inst, "addiw");
+      DB(ss, inst, "addiw");
       result = (uint64_t)(int32_t)((int32_t)reg1 + imm);
       break;
     }
     case 0x2: { // slliw
-      DB(inst, "slliw");
-      result = (int64_t)(reg1 << (imm & 0x3F));
+      DB(ss, inst, "slliw");
+      result = (int64_t)(int32_t)(reg1 << (uint32_t)(imm & 0x1F));
       break;
     }
     case 0x5: {             // srliw or sraiw
       if (funct7 == 0x20) { // sraiw
-        DB(inst, "sraiw");
+        DB(ss, inst, "sraiw");
         result = (int64_t)((uint32_t)reg1 >> (uint64_t)(imm & 0x3F));
       } else if (funct7 == 0) {
-        DB(inst, "srliw");
+        DB(ss, inst, "srliw");
         result = (int64_t)((int32_t)reg1 >> (int64_t)(imm & 0x3F));
       } else {
         return std::unexpected(Exception::IllegalInstruction);
@@ -184,51 +199,51 @@ Cpu::executeGeneral(uint64_t inst) {
     break;
   }
   case 0x13: { // Integer register-immediate
-    int64_t imm = ((int64_t)inst >> 20);
+    uint64_t imm = ((int64_t)(int32_t)inst >> 20);
     uint64_t reg1 = this->xregs->read(rs1);
     uint64_t result;
     switch (funct3) {
     case 0x0: { // addi
-      DB(inst, "addi");
+      DB(ss, inst, "addi");
       result = (int64_t)(reg1) + imm;
       break;
     }
     case 0x2: { // slti
-      DB(inst, "slti");
-      result = ((int64_t)reg1 < imm);
+      DB(ss, inst, "slti");
+      result = ((int64_t)reg1 < (int64_t)imm);
       break;
     }
     case 0x3: { // sltiu
-      DB(inst, "sltiu");
+      DB(ss, inst, "sltiu");
       result = (reg1 < (uint64_t)imm);
       break;
     }
     case 0x4: { // xori
-      DB(inst, "XORI");
+      DB(ss, inst, "XORI");
       result = reg1 ^ imm;
       break;
     }
     case 0x6: { // ori
-      DB(inst, "ori");
+      DB(ss, inst, "ori");
       result = reg1 | imm;
       break;
     }
     case 0x7: { // andi
-      DB(inst, "andi");
+      DB(ss, inst, "andi");
       result = reg1 & imm;
       break;
     }
     case 0x1: { // slli
-      DB(inst, "slli");
+      DB(ss, inst, "slli");
       result = reg1 << (imm & 0x3F);
       break;
     }
     case 0x5: { // srli or srai
       if (funct7 == 0x20) {
-        DB(inst, "srai");
-        result = reg1 >> (uint64_t)(imm & 0x3F);
+        DB(ss, inst, "srai");
+        result = (int64_t)reg1 >> (imm & 0x3F);
       } else if (funct7 == 0) {
-        DB(inst, "srli");
+        DB(ss, inst, "srli");
         result = (int64_t)reg1 >> (int64_t)(imm & 0x3F);
       } else {
         return std::unexpected(Exception::IllegalInstruction);
@@ -248,12 +263,12 @@ Cpu::executeGeneral(uint64_t inst) {
     if (funct7 & 0x1) { // Multiplication
       switch (funct3) {
       case 0x0: { // mulw
-        DB(inst, "mulw");
+        DB(ss, inst, "mulw");
         result = (uint64_t)(int32_t)((int32_t)reg1 * (int32_t)reg2);
         break;
       }
       case 0x4: { // divw
-        DB(inst, "divw");
+        DB(ss, inst, "divw");
         if (reg2 == 0) {
           result = -1;
         } else if ((int32_t)reg1 == INT32_MIN && (int32_t)reg2 == -1) {
@@ -264,7 +279,7 @@ Cpu::executeGeneral(uint64_t inst) {
         break;
       }
       case 0x5: { // divuw
-        DB(inst, "divuw");
+        DB(ss, inst, "divuw");
         if (reg2 == 0) {
           result = -1;
         } else {
@@ -273,7 +288,7 @@ Cpu::executeGeneral(uint64_t inst) {
         break;
       }
       case 0x6: { // remw
-        DB(inst, "remw");
+        DB(ss, inst, "remw");
         if (reg2 == 0) {
           result = (uint64_t)(int32_t)reg1;
         } else {
@@ -282,7 +297,7 @@ Cpu::executeGeneral(uint64_t inst) {
         break;
       }
       case 0x7: { // remuw
-        DB(inst, "remuw");
+        DB(ss, inst, "remuw");
         if (reg2 == 0) {
           result = (uint64_t)(int32_t)reg1;
         } else {
@@ -295,10 +310,10 @@ Cpu::executeGeneral(uint64_t inst) {
       switch (funct3) {
       case 0x0: {          // addw or subw
         if (funct7 == 0) { // addw
-          DB(inst, "addw");
+          DB(ss, inst, "addw");
           result = (uint64_t)(int32_t)((int32_t)reg1 + (int32_t)reg2);
         } else if (funct7 == 0x20) { // sub
-          DB(inst, "addw");
+          DB(ss, inst, "addw");
           result = (uint64_t)(int32_t)((int32_t)reg1 - (int32_t)reg2);
         } else {
           return std::unexpected(Exception::IllegalInstruction);
@@ -306,17 +321,17 @@ Cpu::executeGeneral(uint64_t inst) {
         break;
       }
       case 0x1: { // sllw
-        DB(inst, "sllw");
+        DB(ss, inst, "sllw");
         result = (int64_t)((int32_t)reg1 << (reg2 & 0x1F));
         break;
       }
       case 0x5: {          // srlw or sraw
         if (funct7 == 0) { // srlw
-          DB(inst, "srlw");
-          result = (int64_t)((int32_t)reg1 >> (reg2 & 0x1F));
+          DB(ss, inst, "srlw");
+          result = (int64_t)(int32_t)((uint32_t)reg1 >> (reg2 & 0x1F));
         } else if (funct7 == 0x20) { // sraw
-          DB(inst, "sraw");
-          result = (int64_t)((uint32_t)reg1 >> (uint32_t)(reg2 & 0x1F));
+          DB(ss, inst, "sraw");
+          result = (int64_t)((int32_t)reg1 >> (reg2 & 0x1F));
         } else {
           return std::unexpected(Exception::IllegalInstruction);
         }
@@ -336,19 +351,19 @@ Cpu::executeGeneral(uint64_t inst) {
     if (funct7 & 0x1) { // Multiplication
       switch (funct3) {
       case 0x00: { // mul
-        DB(inst, "mul");
+        DB(ss, inst, "mul");
         result = (int64_t)((int64_t)reg1 * (int64_t)reg2);
         break;
       }
       case 0x1: { // mulh
-        DB(inst, "mulh");
+        DB(ss, inst, "mulh");
         __int128_t val1 = static_cast<int64_t>(reg1);
         __int128_t val2 = static_cast<int64_t>(reg2);
         result = (val1 * val2) >> 64;
         break;
       }
       case 0x2: { // mulhsu
-        DB(inst, "mulhsu");
+        DB(ss, inst, "mulhsu");
         __uint128_t val1 = static_cast<__int128_t>(static_cast<int64_t>(reg1));
         __uint128_t val2 = reg2;
         result = (val1 * val2) >> 64;
@@ -356,12 +371,12 @@ Cpu::executeGeneral(uint64_t inst) {
         break;
       }
       case 0x3: { // mulhu
-        DB(inst, "mulhu");
+        DB(ss, inst, "mulhu");
         result = ((__uint128_t)reg1 * (__uint128_t)reg2) >> 64;
         break;
       }
       case 0x4: { // div
-        DB(inst, "div");
+        DB(ss, inst, "div");
         if (reg2 == 0) {
           result = -1;
           break;
@@ -374,7 +389,7 @@ Cpu::executeGeneral(uint64_t inst) {
         break;
       }
       case 0x5: { // divu
-        DB(inst, "divu");
+        DB(ss, inst, "divu");
         if (reg2 == 0) {
           result = UINT64_MAX;
         } else {
@@ -383,7 +398,7 @@ Cpu::executeGeneral(uint64_t inst) {
         break;
       }
       case 0x6: { // rem
-        DB(inst, "rem");
+        DB(ss, inst, "rem");
         if (reg2 == 0) {
           result = reg1;
         } else if ((int64_t)reg1 == INT64_MIN && (int64_t)reg2 == -1) {
@@ -394,7 +409,7 @@ Cpu::executeGeneral(uint64_t inst) {
         break;
       }
       case 0x7: { // remu
-        DB(inst, "remu");
+        DB(ss, inst, "remu");
         result = reg1 % reg2;
         break;
       }
@@ -405,10 +420,10 @@ Cpu::executeGeneral(uint64_t inst) {
       switch (funct3) {
       case 0x0: {
         if (funct7 == 0) { // add
-          DB(inst, "add");
+          DB(ss, inst, "add");
           result = (int64_t)(reg1 + reg2);
         } else if (funct7) { // sub
-          DB(inst, "sub");
+          DB(ss, inst, "sub");
           result = (int64_t)(reg1 - reg2);
         } else {
           return std::unexpected(Exception::IllegalInstruction);
@@ -416,44 +431,44 @@ Cpu::executeGeneral(uint64_t inst) {
         break;
       }
       case 0x1: { // sll
-        DB(inst, "sll");
+        DB(ss, inst, "sll");
         result = reg1 << (reg2 & 0x3f);
         break;
       }
       case 0x2: { // slt
-        DB(inst, "sll");
+        DB(ss, inst, "sll");
         result = ((int64_t)reg1 < (int64_t)reg2) ? 1 : 0;
         break;
       }
       case 0x3: { // sltu
-        DB(inst, "sll");
+        DB(ss, inst, "sll");
         result = (reg1 < reg2) ? 1 : 0;
         break;
       }
       case 0x4: { // xor
-        DB(inst, "xor");
+        DB(ss, inst, "xor");
         result = reg1 ^ reg2;
         break;
       }
       case 0x5: {
         if (funct7 == 0) { // srl
-          DB(inst, "srl");
+          DB(ss, inst, "srl");
           result = (int64_t)reg1 >> (int64_t)(reg2 & 0x3f);
         } else if (funct7 == 0x20) { // sra
-          DB(inst, "sra");
-          result = reg1 >> (reg2 & 0x3f);
+          DB(ss, inst, "sra");
+          result = (int64_t)reg1 >> (reg2 & 0x3f);
         } else {
           return std::unexpected(Exception::IllegalInstruction);
         }
         break;
       }
       case 0x6: { // or
-        DB(inst, "or");
+        DB(ss, inst, "or");
         result = reg1 | reg2;
         break;
       }
       case 0x7: { // and
-        DB(inst, "or");
+        DB(ss, inst, "or");
         result = reg1 & reg2;
         break;
       }
@@ -466,14 +481,15 @@ Cpu::executeGeneral(uint64_t inst) {
     break;
   }
   case 0x37: { // LUI
-    DB(inst, "lui");
-    int64_t imm = (inst & 0xfffff000);
+    DB(ss, inst, "lui");
+    uint64_t imm = (int64_t)(int32_t)(inst & 0xfffff000);
     this->xregs->write(rd, imm);
     break;
   }
   case 0x17: { // auipc
-    DB(inst, "auipc");
-    int64_t imm = (int64_t)((uint64_t)this->pc + (uint64_t)(inst & 0xfffff000));
+    DB(ss, inst, "auipc");
+    uint64_t imm =
+        (uint64_t)this->pc + (int64_t)(int64_t)(int32_t)(inst & 0xfffff000);
     this->xregs->write(rd, imm);
     break;
   }
@@ -483,43 +499,43 @@ Cpu::executeGeneral(uint64_t inst) {
     int64_t imm = ((int64_t)inst >> 20);
     switch (funct3) {
     case 0x0: { // lb
-      DB(inst, "lb");
+      DB(ss, inst, "lb");
       uint64_t addr = uint64_t(reg1 + imm);
       this->xregs->write(rd, (int64_t)(int8_t)this->bus->read(addr, BYTE));
       break;
     }
     case 0x1: { // lh
-      DB(inst, "lh");
+      DB(ss, inst, "lh");
       uint64_t addr = uint64_t(reg1 + imm);
       this->xregs->write(rd, (int64_t)(int16_t)this->bus->read(addr, HALFWORD));
       break;
     }
     case 0x2: { // lw
-      DB(inst, "lw");
+      DB(ss, inst, "lw");
       uint64_t addr = uint64_t(reg1 + imm);
       this->xregs->write(rd, (int64_t)(int32_t)this->bus->read(addr, WORD));
       break;
     }
     case 0x4: { // lbu
-      DB(inst, "lbu");
+      DB(ss, inst, "lbu");
       uint64_t addr = uint64_t(reg1 + imm);
       this->xregs->write(rd, this->bus->read(addr, BYTE));
       break;
     }
     case 0x5: { // lhu
-      DB(inst, "lhu");
+      DB(ss, inst, "lhu");
       uint64_t addr = uint64_t(reg1 + imm);
       this->xregs->write(rd, this->bus->read(addr, HALFWORD));
       break;
     }
     case 0x6: { // lwu
-      DB(inst, "lwu");
+      DB(ss, inst, "lwu");
       uint64_t addr = uint64_t(reg1 + imm);
       this->xregs->write(rd, (this->bus->read(addr, WORD) & 0xFFFFFFFF));
       break;
     }
     case 0x3: { // ld
-      DB(inst, "ld");
+      DB(ss, inst, "ld");
       uint64_t addr = uint64_t(reg1 + imm);
       this->xregs->write(rd, this->bus->read(addr, DOUBLEWORD));
       break;
@@ -536,25 +552,25 @@ Cpu::executeGeneral(uint64_t inst) {
     uint64_t reg2 = this->xregs->read(rs2);
     switch (funct3) {
     case 0x0: { // sb
-      DB(inst, "sb");
+      DB(ss, inst, "sb");
       uint64_t dest = uint64_t(reg1 + imm);
       this->bus->write(dest, BYTE, reg2 & 0xff);
       break;
     }
     case 0x1: { // sh
-      DB(inst, "sh");
+      DB(ss, inst, "sh");
       uint64_t dest = uint64_t(reg1 + imm);
       this->bus->write(dest, HALFWORD, reg2 & 0xffff);
       break;
     }
     case 0x2: { // sw
-      DB(inst, "sw");
+      DB(ss, inst, "sw");
       uint64_t dest = uint64_t(reg1 + imm);
       this->bus->write(dest, WORD, reg2);
       break;
     }
     case 0x3: { // sd
-      DB(inst, "sd");
+      DB(ss, inst, "sd");
       uint64_t dest = uint64_t(reg1 + imm);
       this->bus->write(dest, DOUBLEWORD, reg2);
       break;
@@ -565,7 +581,7 @@ Cpu::executeGeneral(uint64_t inst) {
     break;
   }
   case 0x6F: { // jal
-    DB(inst, "jal");
+    DB(ss, inst, "jal");
     int64_t offset =
         (((inst >> 21) & 0x3FF) | (((inst >> 20) & 0x1) << 10) |
          (((inst >> 12) & 0xFF) << 11) | ((((int64_t)inst) >> 31)) << 19)
@@ -576,7 +592,7 @@ Cpu::executeGeneral(uint64_t inst) {
     break;
   }
   case 0x67: { // jalr
-    DB(inst, "jalr");
+    DB(ss, inst, "jalr");
     int64_t imm = ((int64_t)inst >> 20);
     uint64_t addr = (((this->xregs->read(rs1) + imm) >> 1) << 1);
     this->xregs->write(rd, this->pc + 4);
@@ -594,37 +610,37 @@ Cpu::executeGeneral(uint64_t inst) {
     uint64_t reg2 = this->xregs->read(rs2);
     switch (funct3) {
     case 0x0: { // beq
-      DB(inst, "beq");
+      DB(ss, inst, "beq");
       if (reg1 == reg2)
         this->pc += imm - 4;
       break;
     }
     case 0x1: { // bne
-      DB(inst, "bne");
+      DB(ss, inst, "bne");
       if (reg1 != reg2)
         this->pc += imm - 4;
       break;
     }
     case 0x4: { // blt
-      DB(inst, "blt");
+      DB(ss, inst, "blt");
       if ((int64_t)reg1 < (int64_t)reg2)
         this->pc += imm - 4;
       break;
     }
     case 0x5: { // bge
-      DB(inst, "bge");
+      DB(ss, inst, "bge");
       if ((int64_t)reg1 >= (int64_t)reg2)
         this->pc += imm - 4;
       break;
     }
     case 0x6: { // bltu
-      DB(inst, "bltu");
+      DB(ss, inst, "bltu");
       if (reg1 < reg2)
         this->pc += imm - 4;
       break;
     }
     case 0x7: { // bgeu
-      DB(inst, "bgeu");
+      DB(ss, inst, "bgeu");
       if (reg1 >= reg2)
         this->pc += imm - 4;
       break;
@@ -633,22 +649,132 @@ Cpu::executeGeneral(uint64_t inst) {
       return std::unexpected(Exception::IllegalInstruction);
     }
     break;
-  } // TODO: FENCE FENCE.TSO PAUSE ECALL EBREAK
-  case 0x73: {        // ECALL EBREAK
-    if (inst >> 20) { // ebreak
-      DB(inst, "ebreak");
-      return std::unexpected(Exception::Breakpoint);
-    } else { // ecall
-      DB(inst, "ecall");
-      switch (mode) {
-      case Mode::MACHINE:
-        return std::unexpected(Exception::EnvironmentCallMmode);
-      case Mode::SUPERVISOR:
-        return std::unexpected(Exception::EnvironmentCallSmode);
-      case Mode::USER:
-        return std::unexpected(Exception::EnvironmentCallUmode);
+  } // TODO: cssrw instructions
+  case 0x73: {
+    switch (funct3) {
+    case 0x0: {              // ecall ebreak sret mret
+      if (inst >> 20 == 1) { // ebreak
+        DB(ss, inst, "ebreak");
+        return std::unexpected(Exception::Breakpoint);
+      } else if (inst >> 20 == 0) { // ecall
+        DB(ss, inst, "ecall");
+        switch (mode) {
+        case Mode::MACHINE:
+          return std::unexpected(Exception::EnvironmentCallMmode);
+        case Mode::SUPERVISOR:
+          return std::unexpected(Exception::EnvironmentCallSmode);
+        case Mode::USER:
+          return std::unexpected(Exception::EnvironmentCallUmode);
+        }
+
+      } else if (funct7 == 0x18) { // mret
+        DB(ss, inst, "mret");
+        if (this->mode != Mode::MACHINE)
+          return std::unexpected(Exception::IllegalInstruction);
+
+        // Set the program counter to MEPC
+        this->pc = cregs->load(csr::Address::MEPC) - 4;
+
+        if (cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MPP) == 0b00) {
+          // Set mode to User and clear MPRV;
+          cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPRV, 0);
+          this->mode = Mode::USER;
+        } else if (cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MPP) ==
+                   0b01) {
+          // Set mode to supervisor and clear MPRV
+          cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPRV, 0);
+          this->mode = Mode::SUPERVISOR;
+        } else if (cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MPP) ==
+                   0b11) {
+          // Set mode to machine but don't clear MPRV
+          this->mode = Mode::MACHINE;
+        }
+
+        cregs->write_bit_mstatus(
+            csr::Mask::MSTATUSBit::MIE,
+            cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MPIE));
+
+        cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPIE, 1);
+
+        cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPP, Mode::USER);
+
+      } else {
+        return std::unexpected(Exception::IllegalInstruction);
       }
+      break;
     }
+    case 0x1: { // csrrw
+      DB(ss, inst, "csrrw");
+      uint64_t initialValue = xregs->read(rs1);
+      if (rd != 0) {
+        xregs->write(rd, cregs->load(csrAddr));
+      }
+      cregs->store(csrAddr, initialValue);
+      break;
+    }
+    case 0x2: { // csrrs
+      DB(ss, inst, "csrrs");
+      uint64_t initialCsrValue = cregs->load(csrAddr);
+      if (rs1 != 0) {
+        uint64_t initialValue = xregs->read(rs1);
+        cregs->store(csrAddr, initialCsrValue | initialValue);
+      }
+      xregs->write(rd, initialCsrValue);
+      break;
+    }
+    case 0x3: { // csrrc
+      DB(ss, inst, "csrrc");
+      uint64_t initialCsrValue = cregs->load(csrAddr);
+      if (rs1 != 0) {
+        uint64_t initialValue = xregs->read(rs1);
+        cregs->store(csrAddr, initialCsrValue & ~initialValue);
+      }
+      xregs->write(rd, initialCsrValue);
+      break;
+    }
+    case 0x5: { // csrrwi
+      DB(ss, inst, "csrrwi");
+      if (rd != 0) {
+        xregs->write(rd, cregs->load(csrAddr));
+      }
+      cregs->store(csrAddr, rs1);
+      break;
+    }
+    case 0x6: { // csrrsi
+      DB(ss, inst, "csrrsi");
+      uint64_t initialCsrValue = cregs->load(csrAddr);
+      if (rs1 != 0) {
+        cregs->store(csrAddr, initialCsrValue | rs1);
+      }
+      xregs->write(rd, initialCsrValue);
+      break;
+    }
+    case 0x7: { // csrrci
+      DB(ss, inst, "csrrci");
+      uint64_t initialCsrValue = cregs->load(csrAddr);
+      if (rs1 != 0) {
+        cregs->store(csrAddr, initialCsrValue & ~rs1);
+      }
+      xregs->write(rd, initialCsrValue);
+      break;
+    }
+
+    default:
+      return std::unexpected(Exception::IllegalInstruction);
+    }
+    break;
+  }
+  case 0x0f: { // fence fence.tso fence.i
+    // All writes are sequential and single threaded so
+    // fences don't do anything
+    if (funct3 == 1) { // fence.i
+      DB(ss, inst, "fence.i");
+    } else if (funct3 == 0) { // fence fence.tso
+      DB(ss, inst, "fence");
+    } else {
+      return std::unexpected(Exception::IllegalInstruction);
+    }
+    break;
   }
   default:
     return std::unexpected(Exception::IllegalInstruction);
