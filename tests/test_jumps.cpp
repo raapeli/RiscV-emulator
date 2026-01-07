@@ -24,29 +24,29 @@
 // ------------------------------------------------------------
 static inline std::pair<uint64_t, uint64_t> jal_rv64() {
   Bus *bus = new Bus();
-  XRegisters *x = new XRegisters();
-  Cpu *cpu = new Cpu(x, bus);
+
+  Cpu *cpu = new Cpu(bus);
 
   bus->write(DRAM_BASE, 32, 0x008000EF); // jal x1, 8
-  x->write(1, 0);
+  cpu->xregs->write(1, 0);
   cpu->execute();
 
-  uint64_t link = x->read(1);
+  uint64_t link = cpu->xregs->read(1);
   uint64_t out_new_pc = cpu->pc;
   return {link, out_new_pc};
 }
 
 static inline std::pair<uint64_t, uint64_t> jalr_rv64(uint64_t base_addr) {
   Bus *bus = new Bus();
-  XRegisters *x = new XRegisters();
-  Cpu *cpu = new Cpu(x, bus);
+
+  Cpu *cpu = new Cpu(bus);
 
   bus->write(DRAM_BASE, 32, 0x004580E7); // jalr x1, 4(x11)
-  x->write(11, base_addr);
-  x->write(1, 0);
+  cpu->xregs->write(11, base_addr);
+  cpu->xregs->write(1, 0);
   cpu->execute();
 
-  uint64_t link = x->read(1);
+  uint64_t link = cpu->xregs->read(1);
   uint64_t out_new_pc = cpu->pc;
   return {link, out_new_pc};
 }
@@ -60,12 +60,12 @@ static constexpr uint64_t BR_OFF8 = 8;
 
 static inline uint64_t beq_rv64(uint64_t v1, uint64_t v2) {
   Bus *bus = new Bus();
-  XRegisters *x = new XRegisters();
-  Cpu *cpu = new Cpu(x, bus);
+
+  Cpu *cpu = new Cpu(bus);
 
   bus->write(DRAM_BASE, 32, 0x00628463); // BEQ x5,x6,+8
-  x->write(5, v1);
-  x->write(6, v2);
+  cpu->xregs->write(5, v1);
+  cpu->xregs->write(6, v2);
   cpu->execute();
 
   return cpu->pc;
@@ -73,12 +73,12 @@ static inline uint64_t beq_rv64(uint64_t v1, uint64_t v2) {
 
 static inline uint64_t bne_rv64(uint64_t v1, uint64_t v2) {
   Bus *bus = new Bus();
-  XRegisters *x = new XRegisters();
-  Cpu *cpu = new Cpu(x, bus);
+
+  Cpu *cpu = new Cpu(bus);
 
   bus->write(DRAM_BASE, 32, 0x00629463); // BNE x5,x6,+8
-  x->write(5, v1);
-  x->write(6, v2);
+  cpu->xregs->write(5, v1);
+  cpu->xregs->write(6, v2);
   cpu->execute();
 
   return cpu->pc;
@@ -86,12 +86,12 @@ static inline uint64_t bne_rv64(uint64_t v1, uint64_t v2) {
 
 static inline uint64_t blt_rv64(uint64_t v1, uint64_t v2) {
   Bus *bus = new Bus();
-  XRegisters *x = new XRegisters();
-  Cpu *cpu = new Cpu(x, bus);
+
+  Cpu *cpu = new Cpu(bus);
 
   bus->write(DRAM_BASE, 32, 0x0062C463); // BLT x5,x6,+8
-  x->write(5, v1);
-  x->write(6, v2);
+  cpu->xregs->write(5, v1);
+  cpu->xregs->write(6, v2);
   cpu->execute();
 
   return cpu->pc;
@@ -99,12 +99,12 @@ static inline uint64_t blt_rv64(uint64_t v1, uint64_t v2) {
 
 static inline uint64_t bge_rv64(uint64_t v1, uint64_t v2) {
   Bus *bus = new Bus();
-  XRegisters *x = new XRegisters();
-  Cpu *cpu = new Cpu(x, bus);
+
+  Cpu *cpu = new Cpu(bus);
 
   bus->write(DRAM_BASE, 32, 0x0062D463); // BGE x5,x6,+8
-  x->write(5, v1);
-  x->write(6, v2);
+  cpu->xregs->write(5, v1);
+  cpu->xregs->write(6, v2);
   cpu->execute();
 
   return cpu->pc;
@@ -112,12 +112,12 @@ static inline uint64_t bge_rv64(uint64_t v1, uint64_t v2) {
 
 static inline uint64_t bltu_rv64(uint64_t v1, uint64_t v2) {
   Bus *bus = new Bus();
-  XRegisters *x = new XRegisters();
-  Cpu *cpu = new Cpu(x, bus);
+
+  Cpu *cpu = new Cpu(bus);
 
   bus->write(DRAM_BASE, 32, 0x0062E463); // BLTU x5,x6,+8
-  x->write(5, v1);
-  x->write(6, v2);
+  cpu->xregs->write(5, v1);
+  cpu->xregs->write(6, v2);
   cpu->execute();
 
   return cpu->pc;
@@ -125,12 +125,12 @@ static inline uint64_t bltu_rv64(uint64_t v1, uint64_t v2) {
 
 static inline uint64_t bgeu_rv64(uint64_t v1, uint64_t v2) {
   Bus *bus = new Bus();
-  XRegisters *x = new XRegisters();
-  Cpu *cpu = new Cpu(x, bus);
+
+  Cpu *cpu = new Cpu(bus);
 
   bus->write(DRAM_BASE, 32, 0x0062F463); // BGEU x5,x6,+8
-  x->write(5, v1);
-  x->write(6, v2);
+  cpu->xregs->write(5, v1);
+  cpu->xregs->write(6, v2);
   cpu->execute();
 
   return cpu->pc;
