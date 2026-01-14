@@ -58,11 +58,7 @@ int test_binary(const std::filesystem::directory_entry entry) {
         cpu->exception.exception == Exception::EnvironmentCallUmode) {
       a0 = cpu->xregs->read(10);
       break;
-    }
-
-    else if (cpu->exception.exception != Exception::None &&
-             cpu->cregs->regs[csr::Address::MTVEC] == 0 &&
-             cpu->cregs->regs[csr::Address::STVEC] == 0) {
+    } else if (cpu->exception.exception != Exception::None) {
       failed_on_exception = true;
       break;
     }
@@ -79,17 +75,18 @@ int test_binary(const std::filesystem::directory_entry entry) {
   }
 
   ss << "Test failed at: " << std::hex << cpu->pc << "\n";
+  cpu->dump_registers(ss);
 
   if (!timeout) {
-    if (failed_on_exception) {
+    if (failed_on_exception &&
+        (cpu->exception.exception != Exception::EnvironmentCallMmode &&
+         cpu->exception.exception != Exception::EnvironmentCallUmode)) {
       std::println(ss, "Exception: {}",
                    cpu->exception.get_exception_str(cpu->exception.exception));
     } else {
       std::println(ss, "a0 was not equal to zero: {}", cpu->xregs->read(10));
     }
-  }
-
-  if (timeout) {
+  } else {
     std::println(ss, "Timeout");
   }
 

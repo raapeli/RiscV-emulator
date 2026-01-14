@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <ostream>
 #include <sstream>
 
 #define REGISTER_COUNT 32
@@ -17,6 +18,12 @@ const uint8_t BYTE = 8;
 const uint8_t HALFWORD = 16;
 const uint8_t WORD = 32;
 const uint8_t DOUBLEWORD = 64;
+
+#define SINGEXTEND_CAST2(val, upcast_from)                                     \
+  (static_cast<int64_t>(static_cast<upcast_from>(val)))
+
+#define SINGEXTEND_CAST(val, upcast_from)                                      \
+  (static_cast<uint64_t>(SINGEXTEND_CAST2(val, upcast_from)))
 
 class XRegisters {
 public:
@@ -44,6 +51,8 @@ public:
   csr::Csr *cregs;
 
   std::optional<Interrupt::InterruptValue> check_pending_interrupt();
+
+  void dump_registers(std::ostream &stream);
 
   void start();
   void oneTick(std::stringstream *debug_stream = nullptr);

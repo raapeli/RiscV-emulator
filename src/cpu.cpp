@@ -2,6 +2,7 @@
 #include "csrs.h"
 #include "exception.h"
 #include <cstdint>
+#include <sys/types.h>
 
 #ifdef DEBUG
 // ---- Bitfield extractors ----
@@ -102,6 +103,14 @@ std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
   return std::nullopt;
 }
 
+void Cpu::dump_registers(std::ostream &stream) {
+  stream << "Registers:\n\n";
+
+  for (int i = 0; i < 32; i++) {
+    stream << std::format("x{}: 0x{:0>8x}\n", i, xregs->read(i));
+  }
+}
+
 void Cpu::start() {
   while (1) {
     oneTick();
@@ -121,12 +130,12 @@ void Cpu::oneTick(std::stringstream *debug_str) {
   }
 
   Trap trap;
-  auto exc_val = this->execute(debug_str);
-  if (!exc_val.has_value()) {
+
+  if (const auto exc_val = this->execute(debug_str); exc_val.has_value()) {
+    trap = Trap::Requested;
+  } else {
     exception.exception = exc_val.error();
     trap = exception.take_trap(this);
-  } else {
-    trap = Trap::Requested;
   }
   // if (trap != Trap::Requested)
   //   std::cin.ignore(10, '\n');
@@ -171,21 +180,23 @@ Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
     switch (funct3) {
     case 0x0: { // addiw
       DB(ss, inst, "addiw");
-      result = (uint64_t)(int32_t)((int32_t)reg1 + imm);
+      result = SINGEXTEND_CAST(reg1 + imm, int32_t);
       break;
     }
-    case 0x2: { // slliw
+    case 0x1: { // slliw
       DB(ss, inst, "slliw");
-      result = (int64_t)(int32_t)(reg1 << (uint32_t)(imm & 0x1F));
+      result = SINGEXTEND_CAST(reg1 << (imm & 0x1F), int32_t);
       break;
     }
     case 0x5: {             // srliw or sraiw
       if (funct7 == 0x20) { // sraiw
         DB(ss, inst, "sraiw");
-        result = (int64_t)((uint32_t)reg1 >> (uint64_t)(imm & 0x3F));
+        result = SINGEXTEND_CAST(
+            static_cast<int32_t>(reg1) >> (uint32_t)(imm & 0x1F), int64_t);
       } else if (funct7 == 0) {
         DB(ss, inst, "srliw");
-        result = (int64_t)((int32_t)reg1 >> (int64_t)(imm & 0x3F));
+        result = SINGEXTEND_CAST(
+            static_cast<uint32_t>(reg1) >> (uint32_t)(imm & 0x1F), int32_t);
       } else {
         return std::unexpected(Exception::IllegalInstruction);
       }
@@ -244,7 +255,7 @@ Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
         result = (int64_t)reg1 >> (imm & 0x3F);
       } else if (funct7 == 0) {
         DB(ss, inst, "srli");
-        result = (int64_t)reg1 >> (int64_t)(imm & 0x3F);
+        result = reg1 >> (imm & 0x1F);
       } else {
         return std::unexpected(Exception::IllegalInstruction);
       }
@@ -264,44 +275,45 @@ Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
       switch (funct3) {
       case 0x0: { // mulw
         DB(ss, inst, "mulw");
-        result = (uint64_t)(int32_t)((int32_t)reg1 * (int32_t)reg2);
+        result = SINGEXTEND_CAST(reg1 * (int64_t)reg2, int32_t);
         break;
       }
       case 0x4: { // divw
         DB(ss, inst, "divw");
         if (reg2 == 0) {
-          result = -1;
+          result = ~0ULL;
         } else if ((int32_t)reg1 == INT32_MIN && (int32_t)reg2 == -1) {
           result = INT32_MIN;
         } else {
-          result = (uint64_t)(int32_t)((int32_t)reg1 / (int32_t)reg2);
+          result = SINGEXTEND_CAST((int32_t)reg1 / (int32_t)reg2, int64_t);
         }
         break;
       }
       case 0x5: { // divuw
         DB(ss, inst, "divuw");
         if (reg2 == 0) {
-          result = -1;
+          result = ~0ULL;
         } else {
-          result = (uint64_t)(int32_t)((uint32_t)reg1 / (uint32_t)reg2);
+          result = SINGEXTEND_CAST((uint32_t)reg1 / (uint32_t)reg2, int32_t);
         }
         break;
       }
       case 0x6: { // remw
         DB(ss, inst, "remw");
         if (reg2 == 0) {
-          result = (uint64_t)(int32_t)reg1;
+          result = SINGEXTEND_CAST((int32_t)reg1, int32_t);
         } else {
-          result = (uint64_t)(int32_t)((int32_t)reg1 % (int32_t)reg2);
+          result = SINGEXTEND_CAST(
+              (int64_t)static_cast<int32_t>(reg1) % (int64_t)reg2, int32_t);
         }
         break;
       }
       case 0x7: { // remuw
         DB(ss, inst, "remuw");
         if (reg2 == 0) {
-          result = (uint64_t)(int32_t)reg1;
+          result = SINGEXTEND_CAST((int32_t)reg1, int32_t);
         } else {
-          result = (uint64_t)(int32_t)((uint32_t)reg1 % (uint32_t)reg2);
+          result = reg1 % (int64_t)reg2;
         }
         break;
       }
@@ -311,10 +323,10 @@ Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
       case 0x0: {          // addw or subw
         if (funct7 == 0) { // addw
           DB(ss, inst, "addw");
-          result = (uint64_t)(int32_t)((int32_t)reg1 + (int32_t)reg2);
-        } else if (funct7 == 0x20) { // sub
-          DB(ss, inst, "addw");
-          result = (uint64_t)(int32_t)((int32_t)reg1 - (int32_t)reg2);
+          result = SINGEXTEND_CAST(reg1 + (int64_t)reg2, int32_t);
+        } else if (funct7 == 0x20) { // subw
+          DB(ss, inst, "subw");
+          result = SINGEXTEND_CAST(reg1 - (int64_t)reg2, int32_t);
         } else {
           return std::unexpected(Exception::IllegalInstruction);
         }
@@ -322,16 +334,16 @@ Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
       }
       case 0x1: { // sllw
         DB(ss, inst, "sllw");
-        result = (int64_t)((int32_t)reg1 << (reg2 & 0x1F));
+        result = SINGEXTEND_CAST(reg1 << (reg2 & 0x1F), int32_t);
         break;
       }
       case 0x5: {          // srlw or sraw
         if (funct7 == 0) { // srlw
           DB(ss, inst, "srlw");
-          result = (int64_t)(int32_t)((uint32_t)reg1 >> (reg2 & 0x1F));
+          result = SINGEXTEND_CAST((uint32_t)reg1 >> (reg2 & 0x1F), int32_t);
         } else if (funct7 == 0x20) { // sraw
           DB(ss, inst, "sraw");
-          result = (int64_t)((int32_t)reg1 >> (reg2 & 0x1F));
+          result = SINGEXTEND_CAST((int32_t)reg1 >> (reg2 & 0x1F), int32_t);
         } else {
           return std::unexpected(Exception::IllegalInstruction);
         }
@@ -410,7 +422,11 @@ Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
       }
       case 0x7: { // remu
         DB(ss, inst, "remu");
-        result = reg1 % reg2;
+        if (reg2 == 0) {
+          result = reg1;
+        } else {
+          result = reg1 % reg2;
+        }
         break;
       }
       default:
@@ -453,10 +469,10 @@ Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
       case 0x5: {
         if (funct7 == 0) { // srl
           DB(ss, inst, "srl");
-          result = (int64_t)reg1 >> (int64_t)(reg2 & 0x3f);
+          result = reg1 >> reg2;
         } else if (funct7 == 0x20) { // sra
           DB(ss, inst, "sra");
-          result = (int64_t)reg1 >> (reg2 & 0x3f);
+          result = (int32_t)reg1 >> (int64_t)(reg2);
         } else {
           return std::unexpected(Exception::IllegalInstruction);
         }
@@ -480,7 +496,7 @@ Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
     this->xregs->write(rd, result);
     break;
   }
-  case 0x37: { // LUI
+  case 0x37: { // lui
     DB(ss, inst, "lui");
     uint64_t imm = (int64_t)(int32_t)(inst & 0xfffff000);
     this->xregs->write(rd, imm);
