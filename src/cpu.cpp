@@ -1,4 +1,6 @@
 #include "cpu.h"
+#include "exception.h"
+#include <print>
 
 void XRegisters::write(uint64_t dest, uint64_t value) {
   if (dest != 0) {
@@ -104,8 +106,11 @@ Cpu::ExecResult Cpu::execute(std::stringstream *ss) {
   uint64_t inst = this->fetch();
   auto result = this->executeGeneral(inst, ss);
   prev_inst = inst;
-  if (!result) {
-    // DB(ss, inst, "unexpected");
+  if (!result.has_value()) {
+    if (exception.exception == Exception::IllegalInstruction) {
+      std::println(*ss, "IllegalInstruction: 0x{:X}", inst);
+      std::println("IllegalInstruction: 0x{:X}", inst);
+    }
     return result;
   }
   this->pc += 4;
@@ -157,6 +162,9 @@ Cpu::ExecResult Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
   case 0x0F:
     res = exec_FENCE(inst, ss);
     break;
+  case 0x2F:
+    res = exec_ATOMIC(inst, ss);
+    break;
   default:
     return std::unexpected(Exception::IllegalInstruction);
   }
@@ -165,5 +173,5 @@ Cpu::ExecResult Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
     return std::unexpected(res.error());
   }
 
-  return inst;
+  return {};
 }

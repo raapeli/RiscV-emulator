@@ -11,6 +11,7 @@
 #include <optional>
 #include <ostream>
 #include <sstream>
+#include <unordered_set>
 
 #define SIGNEXTEND_CAST2(val, upcast_from)                                     \
   (static_cast<int64_t>(static_cast<upcast_from>(val)))
@@ -25,7 +26,7 @@
 #define RS1(inst) (((inst) >> 15) & 0x1F)
 #define RS2(inst) (((inst) >> 20) & 0x1F)
 #define FUNCT7(inst) (((inst) >> 25) & 0x7F)
-
+#define FUNCT5(inst) ((FUNCT7(inst)) >> 2)
 // ---- Immediates for different types ----
 #define IMM_I(inst) (SIGNEXTEND_CAST2(inst & 0xFFF00000, int32_t) >> 20)
 #define IMM_S(inst)                                                            \
@@ -48,8 +49,8 @@
       std::println(*ss, "[DEBUG] {} Instruction 0x{:08x}", name, inst);        \
       std::println(*ss, "opcode: 0x{:02x}  rd: x{}  rs1: x{}  rs2: x{}",       \
                    OPCODE(inst), RD(inst), RS1(inst), RS2(inst));              \
-      std::println(*ss, "funct3: {}  funct7: 0x{:02x}", FUNCT3(inst),          \
-                   FUNCT7(inst));                                              \
+      std::println(*ss, "funct3: 0x{:02x}  funct7: 0x{:02x} funct5: 0x{:02x}", \
+                   FUNCT3(inst), FUNCT7(inst), FUNCT5(inst));                  \
       std::println(*ss, "imm_I: 0x{:08x}  imm_S: 0x{:08x}  imm_B: 0x{:08x}",   \
                    IMM_I(inst), IMM_S(inst), IMM_B(inst));                     \
       std::println(*ss, "imm_U: 0x{:08x}  imm_J: 0x{:08x}", IMM_U(inst),       \
@@ -83,7 +84,7 @@ enum Mode : uint64_t { USER = 0, SUPERVISOR = 01, MACHINE = 3 };
 class Cpu {
 
 public:
-  using ExecResult = std::expected<uint64_t, Exception::ExceptionValue>;
+  using ExecResult = std::expected<void, Exception::ExceptionValue>;
 
   Cpu(Bus *bus);
   ExecResult execute(std::stringstream *ss = nullptr);
@@ -106,20 +107,23 @@ public:
   Bus *bus;
 
 private:
+  std::unordered_set<uint64_t> reservations;
+
   uint64_t fetch();
   ExecResult executeGeneral(uint64_t inst, std::stringstream *ss = nullptr);
 
-  ExecResult exec_OP_IMM_32(uint64_t inst, std::stringstream *ss); // 0x1B
-  ExecResult exec_OP_IMM(uint64_t inst, std::stringstream *ss);    // 0x13
-  ExecResult exec_OP_32(uint64_t inst, std::stringstream *ss);     // 0x3B
-  ExecResult exec_OP(uint64_t inst, std::stringstream *ss);        // 0x33
-  ExecResult exec_LUI(uint64_t inst, std::stringstream *ss);       // 0x37
-  ExecResult exec_AUIPC(uint64_t inst, std::stringstream *ss);     // 0x17
-  ExecResult exec_LOAD(uint64_t inst, std::stringstream *ss);      // 0x03
-  ExecResult exec_STORE(uint64_t inst, std::stringstream *ss);     // 0x23
-  ExecResult exec_JAL(uint64_t inst, std::stringstream *ss);       // 0x6F
-  ExecResult exec_JALR(uint64_t inst, std::stringstream *ss);      // 0x67
-  ExecResult exec_BRANCH(uint64_t inst, std::stringstream *ss);    // 0x63
-  ExecResult exec_SYSTEM(uint64_t inst, std::stringstream *ss);    // 0x73
-  ExecResult exec_FENCE(uint64_t inst, std::stringstream *ss);     // 0x0F
+  ExecResult exec_OP_IMM_32(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_OP_IMM(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_OP_32(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_OP(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_LUI(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_AUIPC(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_LOAD(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_STORE(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_JAL(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_JALR(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_BRANCH(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_SYSTEM(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_FENCE(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_ATOMIC(uint64_t inst, std::stringstream *ss);
 };
