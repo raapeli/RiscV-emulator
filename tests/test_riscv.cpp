@@ -83,11 +83,15 @@ int test_binary(const std::filesystem::directory_entry entry) {
          cpu->exception.exception != Exception::EnvironmentCallUmode)) {
       std::println(ss, "Exception: {}",
                    cpu->exception.get_exception_str(cpu->exception.exception));
+      std::println("Exception: {}",
+                   cpu->exception.get_exception_str(cpu->exception.exception));
     } else {
       std::println(ss, "a0 was not equal to zero: {}", cpu->xregs->read(10));
+      std::println("a0 was not equal to zero: {}", cpu->xregs->read(10));
     }
   } else {
     std::println(ss, "Timeout");
+    std::println("Timeout");
   }
 
   std::filesystem::create_directories("./logs");

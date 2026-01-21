@@ -11,17 +11,16 @@ add_compile_options(-ggdb3 -Wall -Wextra -Wpedantic -fcolor-diagnostics
       -DDEBUG -std=c++23)
 add_executable(RiscV
   src/main.cpp
-  src/lexer.cpp
-  src/parser.cpp
   src/bus.cpp
   src/cpu.cpp
   src/exception.cpp
   src/csrs.cpp
   src/interrupt.cpp
+  src/instructions.cpp
 )
 
 add_library(emulator src/cpu.cpp src/bus.cpp src/csrs.cpp src/exception.cpp
-            src/interrupt.cpp)
+            src/interrupt.cpp src/instructions.cpp)
 target_include_directories(emulator PUBLIC include)
 
 target_include_directories(RiscV

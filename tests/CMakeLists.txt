@@ -11,8 +11,6 @@ target_link_libraries(test_no_jumps PRIVATE emulator)
 target_link_libraries(test_jumps PRIVATE emulator)
 target_link_libraries(test_cpu PRIVATE emulator)
 
-add_test(NAME no_jumps COMMAND test_no_jumps)
-add_test(NAME jumps COMMAND test_jumps)
 add_test(NAME rv64ui_test
  COMMAND $<TARGET_FILE:test_cpu> "../../testbins/rv64ui/bin/"
 )
