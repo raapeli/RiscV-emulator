@@ -652,9 +652,104 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
       this->bus->write(reg1, WORD, std::max(static_cast<uint32_t>(reg2), load));
       break;
     }
+    default:
+      return std::unexpected(Exception::IllegalInstruction);
     }
     break;
   }
+  case 0x3: { // RV64A
+    switch (funct5) {
+    case 0x2: { // lr.d
+      DB(ss, inst, "lr.d");
+      uint64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->xregs->write(rd, load);
+      this->reservations.insert(reg1);
+      break;
+    }
+    case 0x3: { // sc.d
+      DB(ss, inst, "sc.d");
+      if (this->reservations.contains(reg1)) {
+        this->bus->write(reg1, DOUBLEWORD, reg2);
+
+        this->xregs->write(rd, 0);
+      } else {
+        this->xregs->write(rd, 1);
+      }
+      this->reservations.erase(reg1);
+      break;
+    }
+    case 0x1: { // amoswap.d
+      DB(ss, inst, "amoswap.d");
+      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->bus->write(reg1, DOUBLEWORD, reg2);
+      this->xregs->write(rd, load);
+      break;
+    }
+    case 0x0: { // amoadd.w
+      DB(ss, inst, "amoadd.w");
+      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->xregs->write(rd, load);
+      this->bus->write(reg1, DOUBLEWORD, reg2 + load);
+      break;
+    }
+    case 0x4: { // amoxor.w
+      DB(ss, inst, "amoxor.w");
+      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->xregs->write(rd, load);
+      this->bus->write(reg1, DOUBLEWORD, reg2 ^ load);
+      break;
+    }
+    case 0xC: { // amoand.w
+      DB(ss, inst, "amoand.w");
+      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->xregs->write(rd, load);
+      this->bus->write(reg1, DOUBLEWORD, reg2 & load);
+      break;
+    }
+    case 0x8: { // amoor.w
+      DB(ss, inst, "amoor.w");
+      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->xregs->write(rd, load);
+      this->bus->write(reg1, DOUBLEWORD, reg2 | load);
+      break;
+    }
+    case 0x10: { // amomin.w
+      DB(ss, inst, "amomin.w");
+      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->xregs->write(rd, load);
+      this->bus->write(reg1, DOUBLEWORD,
+                       std::min(static_cast<int64_t>(reg2), load));
+      break;
+    }
+    case 0x14: { // amomax.w
+      DB(ss, inst, "amomax.w");
+      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->xregs->write(rd, load);
+      this->bus->write(reg1, DOUBLEWORD,
+                       std::max(static_cast<int64_t>(reg2), load));
+      break;
+    }
+    case 0x18: { // amominu.u
+      DB(ss, inst, "amominu.w");
+      uint64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->xregs->write(rd, load);
+      this->bus->write(reg1, DOUBLEWORD, std::min(reg2, load));
+      break;
+    }
+    case 0x1C: { // amomaxu.u
+      DB(ss, inst, "amomaxu.w");
+      uint64_t load = this->bus->read(reg1, DOUBLEWORD);
+      this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
+      this->bus->write(reg1, DOUBLEWORD, std::max(reg2, load));
+      break;
+    }
+    default:
+      return std::unexpected(Exception::IllegalInstruction);
+    }
+    break;
+  }
+  default:
+    return std::unexpected(Exception::IllegalInstruction);
   }
   return {};
 }
