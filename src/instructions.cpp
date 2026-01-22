@@ -573,7 +573,7 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
 
       uint64_t result = SIGNEXTEND_CAST(this->bus->read(reg1, WORD), int32_t);
       this->xregs->write(rd, result);
-      this->reservations.insert(result);
+      this->reservations.insert(reg1);
 
       break;
     }
@@ -582,9 +582,9 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
       if (this->reservations.contains(reg1)) {
         this->bus->write(reg1, WORD, reg2);
 
-        this->xregs->write(rd, 1);
-      } else {
         this->xregs->write(rd, 0);
+      } else {
+        this->xregs->write(rd, 1);
       }
       this->reservations.erase(reg1);
       break;
