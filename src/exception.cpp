@@ -34,6 +34,8 @@ Trap Exception::take_trap(Cpu *cpu) {
   } else {
     cpu->mode = Mode::MACHINE;
 
+    cpu->pc = cpu->cregs->load(csr::Address::MTVEC) & ~1;
+
     cpu->cregs->write(csr::Address::MEPC, ex_pc & ~1);
 
     cpu->cregs->write(csr::Address::MCAUSE, exception);
