@@ -21,10 +21,10 @@ Trap Exception::take_trap(Cpu *cpu) {
 
     cpu->pc = cpu->cregs->load(csr::Address::STVEC) & ~3;
 
-    cpu->cregs->store(csr::Address::SEPC, ex_pc & ~1);
+    cpu->cregs->write(csr::Address::SEPC, ex_pc & ~1);
 
-    cpu->cregs->store(csr::Address::SCAUSE, exception);
-    cpu->cregs->store(csr::Address::STVAL, ex_pc);
+    cpu->cregs->write(csr::Address::SCAUSE, exception);
+    cpu->cregs->write(csr::Address::STVAL, ex_pc);
 
     cpu->cregs->write_bit_sstatus(
         csr::Mask::SSTATUSBit::SPIE,
@@ -34,11 +34,11 @@ Trap Exception::take_trap(Cpu *cpu) {
   } else {
     cpu->mode = Mode::MACHINE;
 
-    cpu->cregs->store(csr::Address::MEPC, ex_pc & ~1);
+    cpu->cregs->write(csr::Address::MEPC, ex_pc & ~1);
 
-    cpu->cregs->store(csr::Address::MCAUSE, exception);
+    cpu->cregs->write(csr::Address::MCAUSE, exception);
 
-    cpu->cregs->store(csr::Address::MTVAL, ex_pc);
+    cpu->cregs->write(csr::Address::MTVAL, ex_pc);
 
     cpu->cregs->write_bit_mstatus(
         csr::Mask::MSTATUSBit::MPIE,

@@ -21,11 +21,11 @@ void Interrupt::take_trap(Cpu *cpu) {
     }
     cpu->pc = (stvec_val & ~3ULL) + vt_offset;
 
-    cpu->cregs->store(csr::Address::SEPC, pc & ~1ULL);
+    cpu->cregs->write(csr::Address::SEPC, pc & ~1ULL);
 
-    cpu->cregs->store(csr::Address::SCAUSE, 1ULL << 63 | cause);
+    cpu->cregs->write(csr::Address::SCAUSE, 1ULL << 63 | cause);
 
-    cpu->cregs->store(csr::Address::STVAL, 0);
+    cpu->cregs->write(csr::Address::STVAL, 0);
 
     cpu->cregs->write_bit_sstatus(
         csr::Mask::SSTATUSBit::SPIE,
@@ -50,11 +50,11 @@ void Interrupt::take_trap(Cpu *cpu) {
 
     cpu->pc = (mtvec_val & ~3ULL) + vt_offset;
 
-    cpu->cregs->store(csr::Address::MEPC, pc & ~1ULL);
+    cpu->cregs->write(csr::Address::MEPC, pc & ~1ULL);
 
-    cpu->cregs->store(csr::Address::SCAUSE, (1ULL < 63) | cause);
+    cpu->cregs->write(csr::Address::SCAUSE, (1ULL < 63) | cause);
 
-    cpu->cregs->store(csr::Address::MTVAL, 0);
+    cpu->cregs->write(csr::Address::MTVAL, 0);
 
     cpu->cregs->write_bit_mstatus(
         csr::Mask::MSTATUSBit::MPIE,

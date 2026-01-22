@@ -1,9 +1,6 @@
 #include "cpu.h"
 #include "csrs.h"
 #include "exception.h"
-#include <algorithm>
-#include <cstdint>
-#include <sstream>
 
 // 0x1B: Integer register-immediate w-versions (addiw, slliw, etc.)
 Cpu::ExecResult Cpu::exec_OP_IMM_32(uint64_t inst, std::stringstream *ss) {
@@ -491,7 +488,7 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       return std::unexpected(Exception::IllegalInstruction);
     }
   } else { // CSR Instructions
-    uint64_t rs1Val = xregs->read(RS1(inst));
+    uint64_t reg1 = xregs->read(RS1(inst));
     uint64_t rd = RD(inst);
     uint64_t csrVal = cregs->load(csrAddr);
 
@@ -500,36 +497,36 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       DB(ss, inst, "csrrw"); // csrrw
       if (rd != 0)
         xregs->write(rd, csrVal);
-      cregs->store(csrAddr, rs1Val);
+      cregs->write(csrAddr, reg1);
       break;
     case 0x2:
       DB(ss, inst, "csrrs"); // csrrs
       if (RS1(inst) != 0)
-        cregs->store(csrAddr, csrVal | rs1Val);
+        cregs->write(csrAddr, csrVal | reg1);
       xregs->write(rd, csrVal);
       break;
     case 0x3:
       DB(ss, inst, "csrrc"); // csrrc
       if (RS1(inst) != 0)
-        cregs->store(csrAddr, csrVal & ~rs1Val);
+        cregs->write(csrAddr, csrVal & ~reg1);
       xregs->write(rd, csrVal);
       break;
     case 0x5:
       DB(ss, inst, "csrrwi"); // csrrwi
       if (rd != 0)
         xregs->write(rd, csrVal);
-      cregs->store(csrAddr, RS1(inst)); // zimm is in rs1 field
+      cregs->write(csrAddr, RS1(inst)); // zimm is in rs1 field
       break;
     case 0x6:
       DB(ss, inst, "csrrsi"); // csrrsi
       if (RS1(inst) != 0)
-        cregs->store(csrAddr, csrVal | RS1(inst));
+        cregs->write(csrAddr, csrVal | RS1(inst));
       xregs->write(rd, csrVal);
       break;
     case 0x7:
       DB(ss, inst, "csrrci"); // csrrci
       if (RS1(inst) != 0)
-        cregs->store(csrAddr, csrVal & ~RS1(inst));
+        cregs->write(csrAddr, csrVal & ~RS1(inst));
       xregs->write(rd, csrVal);
       break;
     default:

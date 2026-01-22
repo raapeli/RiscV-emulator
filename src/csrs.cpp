@@ -1,5 +1,4 @@
 #include "csrs.h"
-#include <cstdint>
 
 namespace csr {
 
@@ -20,7 +19,7 @@ uint64_t Csr::load(uint64_t addr) {
   }
 }
 
-void Csr::store(uint64_t addr, uint64_t value) {
+void Csr::write(uint64_t addr, uint64_t value) {
   switch (addr) {
   case Address::SSTATUS: {
     uint64_t val =
@@ -61,8 +60,8 @@ uint64_t Csr::read_bits(uint64_t addr, uint64_t upper_offset,
 }
 
 void Csr::write_bit(uint64_t addr, uint64_t offset, uint64_t value) {
-  (value == 0) ? store(addr, load(addr) | (1 << offset))
-               : store(addr, load(addr) & ~(1 << offset));
+  (value == 0) ? write(addr, load(addr) | (1 << offset))
+               : write(addr, load(addr) & ~(1 << offset));
 }
 
 void Csr::write_bits(uint64_t addr, uint64_t upper_offset,
@@ -74,7 +73,7 @@ void Csr::write_bits(uint64_t addr, uint64_t upper_offset,
   value &= ~mask;
   value |= old_val;
 
-  store(addr, value);
+  write(addr, value);
 }
 
 uint64_t Csr::read_bit_mstatus(Mask::MSTATUSBit bit) {

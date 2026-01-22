@@ -171,7 +171,7 @@ public:
   Csr();
 
   uint64_t load(uint64_t addr);
-  void store(uint64_t addr, uint64_t value);
+  void write(uint64_t addr, uint64_t value);
 
   uint64_t read_bit(uint64_t addr, uint64_t offset);
   uint64_t read_bits(uint64_t addr, uint64_t upper_offset,

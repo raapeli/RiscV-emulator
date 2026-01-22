@@ -75,7 +75,7 @@ void Cpu::start() {
 void Cpu::oneTick(std::stringstream *debug_str) {
 
   // Tick time
-  cregs->store(csr::Address::CYCLE, cregs->load(csr::Address::CYCLE) + 1);
+  cregs->write(csr::Address::CYCLE, cregs->load(csr::Address::CYCLE) + 1);
 
   // Take an interrupt
   auto interrupt = this->check_pending_interrupt();
