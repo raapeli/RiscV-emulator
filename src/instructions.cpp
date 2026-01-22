@@ -554,102 +554,115 @@ Cpu::ExecResult Cpu::exec_FENCE(uint64_t inst, std::stringstream *ss) {
 // All operations are currently atomic due to the implementation of the
 // emulator. Therefore these instructions are currently rather simple
 Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
+
   uint64_t funct3 = FUNCT3(inst);
   uint64_t funct5 = FUNCT5(inst);
   uint64_t rs1 = RS1(inst);
-  uint64_t reg1 = this->xregs->read(rs1);
+  uint64_t address = this->xregs->read(rs1);
 
   uint64_t rs2 = RS2(inst);
   uint64_t reg2 = this->xregs->read(rs2);
   uint64_t rd = RD(inst);
   switch (funct3) {
-  // TODO: Address misalinged
+
   case 0x2: { // RV32A
-    // if (this->cregs->read_bit(csr::Address::MISA, 0) != 1)
-    //   return std::unexpected(Exception::IllegalInstruction);
     switch (funct5) {
     case 0x2: { // lr.w
       DB(ss, inst, "lr.w");
 
-      uint64_t result = SIGNEXTEND_CAST(this->bus->read(reg1, WORD), int32_t);
+      if (address % 4 != 0) {
+        return std::unexpected(Exception::LoadAddressMisaligned);
+      }
+
+      uint64_t result =
+          SIGNEXTEND_CAST(this->bus->read(address, WORD), int32_t);
       this->xregs->write(rd, result);
-      this->reservations.insert(reg1);
+      this->reservations.insert(address);
 
       break;
     }
     case 0x3: { // sc.w
       DB(ss, inst, "sc.w");
-      if (this->reservations.contains(reg1)) {
-        this->bus->write(reg1, WORD, reg2);
+
+      if (address % 4 != 0) {
+        return std::unexpected(Exception::LoadAddressMisaligned);
+      }
+
+      if (this->reservations.contains(address)) {
+        this->bus->write(address, WORD, reg2);
 
         this->xregs->write(rd, 0);
       } else {
         this->xregs->write(rd, 1);
       }
-      this->reservations.erase(reg1);
+      this->reservations.erase(address);
       break;
     }
     case 0x1: { // amoswap.w
       DB(ss, inst, "amoswap.w");
-      int32_t load = this->bus->read(reg1, WORD);
-      this->bus->write(reg1, WORD, static_cast<int32_t>(reg2));
+      int32_t load = this->bus->read(address, WORD);
+      this->bus->write(address, WORD, static_cast<int32_t>(reg2));
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
       break;
     }
     case 0x0: { // amoadd.w
       DB(ss, inst, "amoadd.w");
-      int32_t load = this->bus->read(reg1, WORD);
+      int32_t load = this->bus->read(address, WORD);
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
-      this->bus->write(reg1, WORD, static_cast<int32_t>(reg2) + load);
+      this->bus->write(address, WORD, static_cast<int32_t>(reg2) + load);
       break;
     }
     case 0x4: { // amoxor.w
       DB(ss, inst, "amoxor.w");
-      int32_t load = this->bus->read(reg1, WORD);
+      int32_t load = this->bus->read(address, WORD);
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
-      this->bus->write(reg1, WORD, static_cast<int32_t>(reg2) ^ load);
+      this->bus->write(address, WORD, static_cast<int32_t>(reg2) ^ load);
       break;
     }
     case 0xC: { // amoand.w
       DB(ss, inst, "amoand.w");
-      int32_t load = this->bus->read(reg1, WORD);
+      int32_t load = this->bus->read(address, WORD);
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
-      this->bus->write(reg1, WORD, static_cast<int32_t>(reg2) & load);
+      this->bus->write(address, WORD, static_cast<int32_t>(reg2) & load);
       break;
     }
     case 0x8: { // amoor.w
       DB(ss, inst, "amoor.w");
-      int32_t load = this->bus->read(reg1, WORD);
+      int32_t load = this->bus->read(address, WORD);
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
-      this->bus->write(reg1, WORD, static_cast<int32_t>(reg2) | load);
+      this->bus->write(address, WORD, static_cast<int32_t>(reg2) | load);
       break;
     }
     case 0x10: { // amomin.w
       DB(ss, inst, "amomin.w");
-      int32_t load = this->bus->read(reg1, WORD);
+      int32_t load = this->bus->read(address, WORD);
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
-      this->bus->write(reg1, WORD, std::min(static_cast<int32_t>(reg2), load));
+      this->bus->write(address, WORD,
+                       std::min(static_cast<int32_t>(reg2), load));
       break;
     }
     case 0x14: { // amomax.w
       DB(ss, inst, "amomax.w");
-      int32_t load = this->bus->read(reg1, WORD);
+      int32_t load = this->bus->read(address, WORD);
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
-      this->bus->write(reg1, WORD, std::max(static_cast<int32_t>(reg2), load));
+      this->bus->write(address, WORD,
+                       std::max(static_cast<int32_t>(reg2), load));
       break;
     }
     case 0x18: { // amominu.u
       DB(ss, inst, "amominu.w");
-      uint32_t load = this->bus->read(reg1, WORD);
+      uint32_t load = this->bus->read(address, WORD);
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
-      this->bus->write(reg1, WORD, std::min(static_cast<uint32_t>(reg2), load));
+      this->bus->write(address, WORD,
+                       std::min(static_cast<uint32_t>(reg2), load));
       break;
     }
     case 0x1C: { // amomaxu.u
       DB(ss, inst, "amomaxu.w");
-      uint32_t load = this->bus->read(reg1, WORD);
+      uint32_t load = this->bus->read(address, WORD);
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
-      this->bus->write(reg1, WORD, std::max(static_cast<uint32_t>(reg2), load));
+      this->bus->write(address, WORD,
+                       std::max(static_cast<uint32_t>(reg2), load));
       break;
     }
     default:
@@ -661,86 +674,96 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
     switch (funct5) {
     case 0x2: { // lr.d
       DB(ss, inst, "lr.d");
-      uint64_t load = this->bus->read(reg1, DOUBLEWORD);
+
+      if (address % 4 != 0) {
+        return std::unexpected(Exception::LoadAddressMisaligned);
+      }
+
+      uint64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, load);
-      this->reservations.insert(reg1);
+      this->reservations.insert(address);
       break;
     }
     case 0x3: { // sc.d
       DB(ss, inst, "sc.d");
-      if (this->reservations.contains(reg1)) {
-        this->bus->write(reg1, DOUBLEWORD, reg2);
+
+      if (address % 4 != 0) {
+        return std::unexpected(Exception::LoadAddressMisaligned);
+      }
+
+      if (this->reservations.contains(address)) {
+        this->bus->write(address, DOUBLEWORD, reg2);
 
         this->xregs->write(rd, 0);
       } else {
         this->xregs->write(rd, 1);
       }
-      this->reservations.erase(reg1);
+      this->reservations.erase(address);
       break;
     }
     case 0x1: { // amoswap.d
       DB(ss, inst, "amoswap.d");
-      int64_t load = this->bus->read(reg1, DOUBLEWORD);
-      this->bus->write(reg1, DOUBLEWORD, reg2);
+      int64_t load = this->bus->read(address, DOUBLEWORD);
+      this->bus->write(address, DOUBLEWORD, reg2);
       this->xregs->write(rd, load);
       break;
     }
     case 0x0: { // amoadd.w
       DB(ss, inst, "amoadd.w");
-      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      int64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, load);
-      this->bus->write(reg1, DOUBLEWORD, reg2 + load);
+      this->bus->write(address, DOUBLEWORD, reg2 + load);
       break;
     }
     case 0x4: { // amoxor.w
       DB(ss, inst, "amoxor.w");
-      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      int64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, load);
-      this->bus->write(reg1, DOUBLEWORD, reg2 ^ load);
+      this->bus->write(address, DOUBLEWORD, reg2 ^ load);
       break;
     }
     case 0xC: { // amoand.w
       DB(ss, inst, "amoand.w");
-      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      int64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, load);
-      this->bus->write(reg1, DOUBLEWORD, reg2 & load);
+      this->bus->write(address, DOUBLEWORD, reg2 & load);
       break;
     }
     case 0x8: { // amoor.w
       DB(ss, inst, "amoor.w");
-      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      int64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, load);
-      this->bus->write(reg1, DOUBLEWORD, reg2 | load);
+      this->bus->write(address, DOUBLEWORD, reg2 | load);
       break;
     }
     case 0x10: { // amomin.w
       DB(ss, inst, "amomin.w");
-      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      int64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, load);
-      this->bus->write(reg1, DOUBLEWORD,
+      this->bus->write(address, DOUBLEWORD,
                        std::min(static_cast<int64_t>(reg2), load));
       break;
     }
     case 0x14: { // amomax.w
       DB(ss, inst, "amomax.w");
-      int64_t load = this->bus->read(reg1, DOUBLEWORD);
+      int64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, load);
-      this->bus->write(reg1, DOUBLEWORD,
+      this->bus->write(address, DOUBLEWORD,
                        std::max(static_cast<int64_t>(reg2), load));
       break;
     }
     case 0x18: { // amominu.u
       DB(ss, inst, "amominu.w");
-      uint64_t load = this->bus->read(reg1, DOUBLEWORD);
+      uint64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, load);
-      this->bus->write(reg1, DOUBLEWORD, std::min(reg2, load));
+      this->bus->write(address, DOUBLEWORD, std::min(reg2, load));
       break;
     }
     case 0x1C: { // amomaxu.u
       DB(ss, inst, "amomaxu.w");
-      uint64_t load = this->bus->read(reg1, DOUBLEWORD);
+      uint64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, SIGNEXTEND_CAST(load, int32_t));
-      this->bus->write(reg1, DOUBLEWORD, std::max(reg2, load));
+      this->bus->write(address, DOUBLEWORD, std::max(reg2, load));
       break;
     }
     default:
