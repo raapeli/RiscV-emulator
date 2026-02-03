@@ -17,23 +17,32 @@ A Risc-V emulator built in modern C++23.
 
 ### Requirements
 
-
 ```cmake clang```
 
 ```
-$ git clone https://github.com/raapeli/RiscV-emulator.git
+$ git clone --recurse-submodules https://github.com/raapeli/RiscV-emulator.git
 $ cmake -S . -B build -DCMAKE_CXX_COMPILER=clang++
 $ cd build && make
 ```
 
+## Testing
+
+On Arch, install packages:
+
+``` 
+riscv64-elf-binutils
+riscv64-elf-gcc
+``` 
+For other distros, install similar packages
+
+For building the tests run in addition to normal build instructions
+``` 
+cmake -P MakeTests.cmake
+cd build && ctest --output-on-failure .
+``` 
+
+All tests are not yet passing
 
 ## Usage
 
 Run the program RiscV with an argument to a RiscV binary with no headers.
-
-Run tests with
-
-``` 
-cmake test
-```
-
