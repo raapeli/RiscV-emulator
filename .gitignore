@@ -7,3 +7,5 @@ build/
 !.gitignore
 !*.md
 !.gitmodules
+!MakeTests.cmake
+!link.ld
