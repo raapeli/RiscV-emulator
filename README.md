@@ -60,3 +60,20 @@ The emulator connects guest byte loads and stores to standard input and output.
 Poll the status register before reading data to distinguish a zero byte from an
 empty input buffer. With a terminal in its usual line mode, input becomes
 available when you press Enter. Input can also be piped into the emulator.
+
+### Bare-metal shell example
+
+From the repository root, build the emulator and the RV64IMA shell with the
+same cross-toolchain used to build the tests.
+
+```sh
+cmake --build build
+riscv64-elf-gcc -march=rv64ima -mabi=lp64 -Os -ffreestanding -nostdlib \
+  -msmall-data-limit=0 -mno-relax -Texamples/console-shell/link.ld \
+  examples/console-shell/start.S examples/console-shell/shell.c \
+  -o build/console-shell.elf
+riscv64-elf-objcopy -O binary build/console-shell.elf build/console-shell.bin
+./build/RiscV build/console-shell.bin
+```
+
+At the `>` prompt, enter `help` or `echo hello`. Press Ctrl+C to stop the emulator.

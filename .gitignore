@@ -9,3 +9,5 @@ build/
 !.gitmodules
 !MakeTests.cmake
 !link.ld
+!examples/console-shell/start.S
+!examples/console-shell/shell.c
