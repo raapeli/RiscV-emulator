@@ -11,7 +11,8 @@ const uint64_t CONSOLE_STATUS = CONSOLE_DATA + 1;
 
 class Bus {
 public:
-  explicit Bus(bool enable_console = false, uint64_t base = DRAM_BASE);
+  explicit Bus(bool enable_console = false, uint64_t base = DRAM_BASE,
+               uint64_t size = DRAM_SIZE);
 
   uint64_t read(uint64_t addr, uint8_t size);
   void write(uint64_t addr, uint8_t size, uint64_t value);

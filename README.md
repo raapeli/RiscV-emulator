@@ -51,6 +51,21 @@ read results reported by guest trap handlers through `tohost`.
 
 Run the program RiscV with an argument to a RiscV binary with no headers.
 
+### Linux boot image loader
+
+The Linux boot mode loads four files into 128 MiB of guest RAM and starts the
+firmware in machine mode with hart ID zero and the DTB address in `a0` and `a1`.
+
+```sh
+./build/RiscV --linux --firmware fw_jump.bin --kernel Image \
+  --dtb guest.dtb --initrd initramfs.cpio
+```
+
+The firmware, kernel, initramfs, and DTB start at `0x80000000`, `0x80200000`,
+`0x84000000`, and `0x87e00000` respectively. The supplied DTB is passed through
+as-is. The loader is the first stage of Linux platform support. The timer,
+interrupt controller, and serial UART are still pending.
+
 ### Polled console
 
 The emulator connects guest byte loads and stores to standard input and output.

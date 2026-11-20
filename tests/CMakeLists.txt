@@ -23,6 +23,29 @@ add_test(NAME pmp_test COMMAND test_pmp)
 add_test(NAME sv39_test COMMAND test_sv39)
 add_test(NAME floating_rounding_test COMMAND test_floating_rounding)
 
+find_program(RISCV_GCC riscv64-elf-gcc)
+find_program(RISCV_OBJCOPY riscv64-elf-objcopy)
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(RISCV_GCC AND RISCV_OBJCOPY AND Python3_Interpreter_FOUND)
+  set(boot_probe_elf "${CMAKE_CURRENT_BINARY_DIR}/linux_boot_probe.elf")
+  set(boot_probe_bin "${CMAKE_CURRENT_BINARY_DIR}/linux_boot_probe.bin")
+  add_custom_command(
+    OUTPUT "${boot_probe_bin}"
+    BYPRODUCTS "${boot_probe_elf}"
+    COMMAND "${RISCV_GCC}" -march=rv64ima_zicsr -mabi=lp64 -nostdlib -mno-relax
+            -Wl,-Ttext=0x80000000 "${CMAKE_CURRENT_SOURCE_DIR}/linux_boot_probe.S"
+            -o "${boot_probe_elf}"
+    COMMAND "${RISCV_OBJCOPY}" -O binary "${boot_probe_elf}" "${boot_probe_bin}"
+    DEPENDS linux_boot_probe.S
+    VERBATIM
+  )
+  add_custom_target(linux_boot_probe ALL DEPENDS "${boot_probe_bin}")
+  add_test(NAME linux_boot_loader_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_linux_boot_loader.py"
+            $<TARGET_FILE:RiscV> "${boot_probe_bin}"
+  )
+endif()
+
 add_test(NAME rv64ui_test
  COMMAND $<TARGET_FILE:test_cpu> "../../testbins/rv64ui/bin/"
 )

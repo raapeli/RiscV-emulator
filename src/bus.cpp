@@ -5,8 +5,8 @@
 #include <poll.h>
 #include <unistd.h>
 
-Bus::Bus(bool enable_console, uint64_t base)
-    : ram_base(base), dram(DRAM_SIZE, 0), console_enabled(enable_console) {}
+Bus::Bus(bool enable_console, uint64_t base, uint64_t size)
+    : ram_base(base), dram(size, 0), console_enabled(enable_console) {}
 
 bool Bus::contains_ram_access(uint64_t addr, uint8_t size) const {
   if (size != BYTE && size != HALFWORD && size != WORD && size != DOUBLEWORD)

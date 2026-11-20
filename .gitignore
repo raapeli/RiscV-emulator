@@ -14,3 +14,5 @@ build/
 !examples/kernel-userspace/start.S
 !examples/kernel-userspace/kernel.c
 !examples/kernel-userspace/test_user_mode_syscalls.py
+!tests/linux_boot_probe.S
+!tests/test_linux_boot_loader.py
