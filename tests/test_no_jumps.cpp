@@ -1,7 +1,16 @@
 #include "bus.h"
 #include "cpu.h"
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
+
+static void execute_instruction(Cpu &cpu) {
+  if (const auto result = cpu.execute(); !result) {
+    std::cerr << "Instruction at 0x" << std::hex << cpu.pc << " raised "
+              << cpu.exception.get_exception_str(result.error()) << '\n';
+    std::exit(EXIT_FAILURE);
+  }
+}
 
 #define TEST_CASE(name, actual, expected)                                      \
   do {                                                                         \
@@ -27,7 +36,7 @@ static inline int64_t mul_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C58533);
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -38,7 +47,7 @@ static inline int64_t mulh_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C59533);
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -49,7 +58,7 @@ static inline int64_t mulhsu_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5A533);
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -60,7 +69,7 @@ static inline int64_t mulhu_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5B533);
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -75,7 +84,7 @@ static inline int64_t div_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5C533); // div x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
 
   int64_t result = cpu->xregs->read(10);
   return result;
@@ -88,7 +97,7 @@ static inline uint64_t divu_rv64(uint64_t a, uint64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5D533); // divu x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
 
   uint64_t result = cpu->xregs->read(10);
   return result;
@@ -101,7 +110,7 @@ static inline int64_t rem_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5E533); // rem x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
 
   int64_t result = cpu->xregs->read(10);
   return result;
@@ -114,7 +123,7 @@ static inline uint64_t remu_rv64(uint64_t a, uint64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5F533); // remu x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
 
   uint64_t result = cpu->xregs->read(10);
   return result;
@@ -130,7 +139,7 @@ static inline int64_t add_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C58533); // add x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -142,7 +151,7 @@ static inline int64_t sub_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x40C58533); // sub x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -154,7 +163,7 @@ static inline int64_t sll_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C59533); // sll x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -166,7 +175,7 @@ static inline int64_t slt_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C5A533); // slt x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -178,7 +187,7 @@ static inline int64_t sltu_rv64(uint64_t a, uint64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C5B533); // sltu x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -190,7 +199,7 @@ static inline int64_t xor_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C5C533); // xor x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -202,7 +211,7 @@ static inline int64_t srl_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C5D533); // srl x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -214,7 +223,7 @@ static inline int64_t sra_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x40C5D533); // sra x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -226,7 +235,7 @@ static inline int64_t or_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C5E533); // or x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -238,7 +247,7 @@ static inline int64_t and_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C5F533); // and x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -253,7 +262,7 @@ static inline int64_t addi_rv64(int64_t a) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32, 0x00558513); // addi x10, x11, 5
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -265,7 +274,7 @@ static inline int64_t slti_rv64(int64_t a) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32, 0x0055A513); // slti x10, x11, 5
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -277,7 +286,7 @@ static inline int64_t sltiu_rv64(uint64_t a) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32, 0x0055B513); // sltiu x10, x11, 5
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -289,7 +298,7 @@ static inline int64_t xori_rv64(int64_t a) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32, 0x0055C513); // xori x10, x11, 5
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -301,7 +310,7 @@ static inline int64_t ori_rv64(int64_t a) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32, 0x0055E513); // ori x10, x11, 5
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -313,7 +322,7 @@ static inline int64_t andi_rv64(int64_t a) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32, 0x0055F513); // andi x10, x11, 5
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -325,7 +334,7 @@ static inline int64_t slli_rv64(int64_t a) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32, 0x00559513); // slli x10, x11, 5
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -337,7 +346,7 @@ static inline int64_t srli_rv64(int64_t a) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32, 0x0055D513); // srli x10, x11, 5
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -349,7 +358,7 @@ static inline int64_t srai_rv64(int64_t a) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32, 0x4055D513); // srai x10, x11, 5
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
 
   return result;
@@ -363,7 +372,7 @@ static inline int64_t lui_rv64() {
 
   Cpu *cpu = new Cpu(bus);
   bus->write(DRAM_BASE, 32, 0xABCDE537);
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
   return result;
 }
@@ -373,7 +382,7 @@ static inline int64_t auipc_rv64() {
 
   Cpu *cpu = new Cpu(bus);
   bus->write(DRAM_BASE, 32, 0xABCDE517);
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(10);
   return result;
 }
@@ -388,7 +397,7 @@ static inline int64_t lb_rv64(int8_t memval) {
   bus->write(DRAM_BASE + 1000, 32, memval);
   cpu->xregs->write(11, DRAM_BASE + 500);
   bus->write(DRAM_BASE, 32, 0x1F458603); // lb x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(12);
   return result;
 }
@@ -400,7 +409,7 @@ static inline int64_t lh_rv64(int16_t memval) {
   bus->write(DRAM_BASE + 1000, 32, memval);
   cpu->xregs->write(11, DRAM_BASE + 500);
   bus->write(DRAM_BASE, 32, 0x1F459603); // lh x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(12);
   return result;
 }
@@ -412,7 +421,7 @@ static inline int64_t lw_rv64(int64_t memval) {
   bus->write(DRAM_BASE + 1000, 32, memval);
   cpu->xregs->write(11, DRAM_BASE + 500);
   bus->write(DRAM_BASE, 32, 0x1F45A603); // lw x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(12);
   return result;
 }
@@ -424,7 +433,7 @@ static inline int64_t lwu_rv64(int64_t memval) {
   bus->write(DRAM_BASE + 1000, 32, memval);
   cpu->xregs->write(11, DRAM_BASE + 500);
   bus->write(DRAM_BASE, 32, 0x1F45e603); // lwu x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(12);
   return result;
 }
@@ -436,7 +445,7 @@ static inline int64_t ld_rv64(int64_t memval) {
   bus->write(DRAM_BASE + 1000, 64, memval);
   cpu->xregs->write(11, DRAM_BASE + 500);
   bus->write(DRAM_BASE, 32, 0x1F45b603); // ld x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(12);
   return result;
 }
@@ -448,7 +457,7 @@ static inline int64_t lbu_rv64(uint8_t memval) {
   bus->write(DRAM_BASE + 1000, 32, memval);
   cpu->xregs->write(11, DRAM_BASE + 500);
   bus->write(DRAM_BASE, 32, 0x1F45C603); // lbu x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(12);
   return result;
 }
@@ -460,7 +469,7 @@ static inline int64_t lhu_rv64(uint16_t memval) {
   bus->write(DRAM_BASE + 1000, 32, memval);
   cpu->xregs->write(11, DRAM_BASE + 500);
   bus->write(DRAM_BASE, 32, 0x1F45D603); // lhu x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = cpu->xregs->read(12);
   return result;
 }
@@ -476,7 +485,7 @@ static inline uint64_t addw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C5853b); // addw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -487,7 +496,7 @@ static inline uint64_t subw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x40C5853B); // subw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -498,7 +507,7 @@ static inline uint64_t sllw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C5953B); // sllw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -509,7 +518,7 @@ inline uint64_t srlw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x00C5D53B); // srlw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -520,7 +529,7 @@ static inline uint64_t sraw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x40C5D53B); // sraw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -531,7 +540,7 @@ static inline uint64_t mulw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5853B); // mulw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -542,7 +551,7 @@ static inline uint64_t divw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5C53B); // divw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -553,7 +562,7 @@ static inline uint64_t divuw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5D53B); // divuw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -564,7 +573,7 @@ static inline uint64_t remw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5E53B); // remw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -575,7 +584,7 @@ static inline uint64_t remuw_rv64(int64_t a, int64_t b) {
   cpu->xregs->write(11, a);
   cpu->xregs->write(12, b);
   bus->write(DRAM_BASE, 32, 0x02C5F53B); // remuw x10, x11, x12
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -587,7 +596,7 @@ static inline uint64_t addiw_rv64(int64_t a, int64_t imm) {
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32,
              0x0005851B | ((imm & 0xFFF) << 20)); // addiw x10, x11, imm
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -597,8 +606,8 @@ static inline uint64_t slliw_rv64(int64_t a, int64_t shamt) {
   Cpu *cpu = new Cpu(bus);
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32,
-             0x0005C51B | ((shamt & 0x1F) << 20)); // slliw x10, x11, shamt
-  cpu->execute();
+             0x0005951B | ((shamt & 0x1F) << 20)); // slliw x10, x11, shamt
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -609,7 +618,7 @@ static inline uint64_t srliw_rv64(int64_t a, int64_t shamt) {
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32,
              0x0005D51B | ((shamt & 0x1F) << 20)); // srliw x10, x11, shamt
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -620,7 +629,7 @@ static inline uint64_t sraiw_rv64(int64_t a, int64_t shamt) {
   cpu->xregs->write(11, a);
   bus->write(DRAM_BASE, 32,
              0x4005D51B | ((shamt & 0x1F) << 20)); // sraiw x10, x11, shamt
-  cpu->execute();
+  execute_instruction(*cpu);
   return cpu->xregs->read(10);
 }
 
@@ -635,7 +644,7 @@ static inline uint64_t sb_rv64(uint8_t val) {
   cpu->xregs->write(11, DRAM_BASE + 500);
   bus->write(DRAM_BASE + 1000, WORD, 0xBBBBBBBB);
   bus->write(DRAM_BASE, 32, 0x1EC58A23); // sb x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = bus->read(DRAM_BASE + 1000, WORD);
   return result;
 }
@@ -648,7 +657,7 @@ static inline uint64_t sh_rv64(uint16_t val) {
   cpu->xregs->write(11, DRAM_BASE + 500);
   bus->write(DRAM_BASE + 1000, WORD, 0xBBBBBBBB);
   bus->write(DRAM_BASE, 32, 0x1EC59A23); // sh x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = bus->read(DRAM_BASE + 1000, WORD);
   return result;
 }
@@ -661,7 +670,7 @@ static inline uint64_t sw_rv64(uint64_t val) {
   cpu->xregs->write(11, DRAM_BASE + 500);
   cpu->xregs->write(12, val);
   bus->write(DRAM_BASE, 32, 0x1EC5AA23); // sw x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = bus->read(DRAM_BASE + 1000, WORD);
   return result;
 }
@@ -674,7 +683,7 @@ static inline uint64_t sd_rv64(uint64_t val) {
   cpu->xregs->write(11, DRAM_BASE + 500);
   cpu->xregs->write(12, val);
   bus->write(DRAM_BASE, 32, 0x1EC5BA23); // sw x12, 500(x11)
-  cpu->execute();
+  execute_instruction(*cpu);
   int64_t result = bus->read(DRAM_BASE + 1000, DOUBLEWORD);
   return result;
 }
@@ -682,11 +691,11 @@ static inline uint64_t sd_rv64(uint64_t val) {
 // Expected-value helpers
 // ------------------------------------------------------------
 static inline int64_t expect_lui(uint64_t imm20) {
-  return static_cast<int64_t>(imm20 << 12);
+  return static_cast<int32_t>(imm20 << 12);
 }
 
 static inline int64_t expect_auipc(uint64_t imm20) {
-  return static_cast<int64_t>(DRAM_BASE + (imm20 << 12));
+  return static_cast<int64_t>(DRAM_BASE) + expect_lui(imm20);
 }
 
 int main() {
@@ -696,6 +705,7 @@ int main() {
   uint64_t imm20 = 0xabcde;
   int64_t a32w = 0x50502323, b32w = 0xFFFF8245;
   uint32_t imm32w = 123;
+  uint32_t shamt32 = imm32w & 0x1f;
 
   TEST_CASE("MUL", mul_rv64(a, b), (int64_t)(a * b));
   TEST_CASE("MULH", mulh_rv64(a, b),
@@ -756,17 +766,26 @@ int main() {
             (uint64_t)(int32_t)((int32_t)a32w % (int32_t)b32w));
   TEST_CASE("REMUW", remuw_rv64(a32w, b32w),
             (uint64_t)((uint32_t)a32w % (uint32_t)b32w));
+  constexpr int64_t low_word_zero = 1LL << 32;
+  constexpr int64_t negative_word = INT32_MIN;
+  TEST_CASE("REMW zero low word", remw_rv64(negative_word, low_word_zero),
+            static_cast<uint64_t>(negative_word));
+  TEST_CASE("REMW signed overflow", remw_rv64(negative_word, -1), 0ULL);
+  TEST_CASE("REMUW zero low word", remuw_rv64(negative_word, low_word_zero),
+            static_cast<uint64_t>(negative_word));
+  TEST_CASE("REMUW sign-extended result", remuw_rv64(negative_word, -1),
+            static_cast<uint64_t>(negative_word));
 
   TEST_CASE("ADDIW positive", addiw_rv64(a32w, imm32w),
             (uint64_t)(int32_t)((int64_t)a32w + imm32w));
   TEST_CASE("ADDIW negative", addiw_rv64(-1, imm32w),
             (uint64_t)(int32_t)((int64_t)-1 + imm32w));
   TEST_CASE("SLLIW", slliw_rv64(a32w, imm32w),
-            (uint64_t)(int32_t)((uint64_t)a32w << imm32w));
+            (uint64_t)(int32_t)((uint32_t)a32w << shamt32));
   TEST_CASE("SRLIW", srliw_rv64(a32w, imm32w),
-            (uint64_t)((uint32_t)a32w >> imm32w));
+            (uint64_t)((uint32_t)a32w >> shamt32));
   TEST_CASE("SRAIW", sraiw_rv64(a32w, imm32w),
-            (uint64_t)(int32_t)((int32_t)a32w >> imm32w));
+            (uint64_t)(int32_t)((int32_t)a32w >> shamt32));
 
   TEST_CASE("LUI", lui_rv64(), expect_lui(imm20));
   TEST_CASE("AUIPC", auipc_rv64(), expect_auipc(imm20));

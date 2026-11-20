@@ -1,6 +1,7 @@
 #include "cpu.h"
 #include "csrs.h"
 #include "exception.h"
+#include <cstdint>
 
 // 0x1B: Integer register-immediate w-versions (addiw, slliw, etc.)
 Cpu::ExecResult Cpu::exec_OP_IMM_32(uint64_t inst, std::stringstream *ss) {
@@ -138,21 +139,21 @@ Cpu::ExecResult Cpu::exec_OP_32(uint64_t inst, std::stringstream *ss) {
       else
         result = SIGNEXTEND_CAST((uint32_t)reg1 / (uint32_t)reg2, int32_t);
       break;
-    case 0x6:
+    case 0x6: {
       DB(ss, inst, "remw");
-      if (reg2 == 0)
-        result = SIGNEXTEND_CAST((int32_t)reg1, int32_t);
-      else
-        result = SIGNEXTEND_CAST(
-            (int64_t)static_cast<int32_t>(reg1) % (int64_t)reg2, int32_t);
+      const int64_t divisor = static_cast<int32_t>(reg2);
+      const int64_t dividend = static_cast<int32_t>(reg1);
+      result = divisor == 0 ? dividend : dividend % divisor;
       break;
-    case 0x7:
+    }
+    case 0x7: {
       DB(ss, inst, "remuw");
-      if (reg2 == 0)
-        result = SIGNEXTEND_CAST((int32_t)reg1, int32_t);
-      else
-        result = reg1 % (int64_t)reg2;
+      const uint32_t divisor = static_cast<uint32_t>(reg2);
+      const uint32_t dividend = static_cast<uint32_t>(reg1);
+      const uint32_t rem = divisor == 0 ? dividend : dividend % divisor;
+      result = static_cast<int32_t>(rem);
       break;
+    }
     default:
       return std::unexpected(Exception::IllegalInstruction);
     }
