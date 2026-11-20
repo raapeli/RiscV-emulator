@@ -12,6 +12,8 @@
 #include <sstream>
 #include <string>
 
+constexpr uint64_t EXIT_SYSCALL = 93;
+
 int load_into_dram(const char *path, Bus *bus) {
   std::ifstream file(path, std::ios::binary);
   if (!file) {
@@ -54,15 +56,19 @@ int test_binary(const std::filesystem::directory_entry entry) {
   while (!timeout) {
     cpu->oneTick(&ss);
 
-    // Breakpoints with a guest trap handler can resume on the next tick.
-    if (cpu->exception.exception == Exception::EnvironmentCallMmode ||
-        cpu->exception.exception == Exception::EnvironmentCallUmode ||
-        cpu->exception.exception == Exception::EnvironmentCallSmode) {
+    const auto exception = cpu->exception.exception;
+    const bool is_ecall = exception == Exception::EnvironmentCallMmode ||
+                          exception == Exception::EnvironmentCallUmode ||
+                          exception == Exception::EnvironmentCallSmode;
+    // The pass/fail macros set a7 to the exit syscall number.
+    const bool delegated_ecall = is_ecall && cpu->mode == Mode::SUPERVISOR &&
+                                 cpu->xregs->read(17) != EXIT_SYSCALL;
+    if (is_ecall && !delegated_ecall) {
       a0 = cpu->xregs->read(10);
       reached_ecall = true;
       break;
-    } else if (cpu->exception.exception != Exception::None &&
-               (cpu->exception.exception != Exception::Breakpoint ||
+    } else if (exception != Exception::None &&
+               ((!delegated_ecall && exception != Exception::Breakpoint) ||
                 cpu->pc < DRAM_BASE)) {
       break;
     }

@@ -469,9 +469,9 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       if (this->mode != Mode::MACHINE)
         return std::unexpected(Exception::IllegalInstruction);
 
-      uint64_t mpp = cregs->read_bits(csr::Address::MSTATUS,
-                                     csr::Mask::MPP_HIGH_BIT,
-                                     csr::Mask::MPP_LOW_BIT);
+      uint64_t mpp =
+          cregs->read_bits(csr::Address::MSTATUS, csr::Mask::MPP_HIGH_BIT,
+                           csr::Mask::MPP_LOW_BIT);
       if (mpp != Mode::USER && mpp != Mode::SUPERVISOR && mpp != Mode::MACHINE)
         return std::unexpected(Exception::IllegalInstruction);
 
@@ -487,6 +487,24 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPIE, 1);
       cregs->write_bits(csr::Address::MSTATUS, csr::Mask::MPP_HIGH_BIT,
                         csr::Mask::MPP_LOW_BIT, Mode::USER);
+    } else if (csrAddr == 0x102 && RS1(inst) == 0 && RD(inst) == 0) { // sret
+      DB(ss, inst, "sret");
+      if (mode == Mode::USER ||
+          (mode == Mode::SUPERVISOR &&
+           cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::TSR)))
+        return std::unexpected(Exception::IllegalInstruction);
+
+      // IALIGN is 32. The execute loop adds 4 after the return.
+      this->pc = (cregs->load(csr::Address::SEPC) & ~3ULL) - 4;
+      this->mode = cregs->read_bit_sstatus(csr::Mask::SSTATUSBit::SPP)
+                       ? Mode::SUPERVISOR
+                       : Mode::USER;
+      cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPRV, 0);
+      cregs->write_bit_sstatus(
+          csr::Mask::SSTATUSBit::SIE,
+          cregs->read_bit_sstatus(csr::Mask::SSTATUSBit::SPIE));
+      cregs->write_bit_sstatus(csr::Mask::SSTATUSBit::SPIE, 1);
+      cregs->write_bit_sstatus(csr::Mask::SSTATUSBit::SPP, 0);
     } else {
       return std::unexpected(Exception::IllegalInstruction);
     }
