@@ -81,3 +81,18 @@ riscv64-elf-objcopy -O binary build/console-shell.elf build/console-shell.bin
 ```
 
 At the `>` prompt, enter `help` or `echo hello`. Press Ctrl+C to stop the emulator.
+
+### Kernel and userspace example
+
+With `riscv64-elf-gcc` and `riscv64-elf-objcopy` available, the regular build
+creates `build/examples/kernel-userspace/kernel-userspace.bin`. Run it through
+the emulator from the repository root.
+
+```sh
+cmake --build build
+./build/RiscV build/examples/kernel-userspace/kernel-userspace.bin
+```
+
+The kernel switches to U-mode, then prints `kernel: received U-mode ecall`
+after receiving an ECALL from the embedded user program. Press Ctrl+C after
+that message. With Python 3 installed, CTest checks this boot path automatically.
