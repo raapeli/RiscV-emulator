@@ -50,11 +50,33 @@ read results reported by guest trap handlers through `tohost`.
 
 ### Linux and BusyBox integration test
 
-Set `LINUX_BOOT_TEST_IMAGES` to opt in to booting real Linux images. The
-directory must contain `fw_jump.bin`, `Image`, and `initramfs.cpio`. The
-initramfs must print `BusyBox shell ready` from `/init` and start an
-interactive shell on the serial console. The test uses Python 3 and a Release
-build is recommended for the 180-second boot and command timeout.
+Build the test images from the [Linux boot recipe](examples/linux-boot/build.sh).
+It uses OpenSBI 1.6, Linux 6.12, and BusyBox 1.37.0, and checks the SHA-256
+digest of each source archive. The kernel and BusyBox config fragments and the
+initramfs inputs are in [examples/linux-boot](examples/linux-boot).
+
+The build needs a host C compiler, GNU make, curl, GNU coreutils and tar,
+xz, bzip2, Python 3, dtc, bc, flex, bison, and the OpenSSL and libelf development
+headers. Use an RV64 Linux cross-toolchain with static target libc. The tested
+Arch toolchain is GCC 16.2.1, binutils 2.47, and glibc 2.44, from
+`riscv64-linux-gnu-gcc`, `riscv64-linux-gnu-binutils`, and
+`riscv64-linux-gnu-glibc`. Allow about 3 GiB for sources and build output.
+
+```sh
+bash examples/linux-boot/build.sh
+```
+
+The script writes `fw_jump.bin`, `Image`, and `initramfs.cpio` to
+`build/linux-boot` by default. Pass an output directory as the first argument
+for a separate build. Set `CROSS_COMPILE` to override the default
+`riscv64-linux-gnu-` prefix or `JOBS` to limit build parallelism. The script
+caches archives under the output directory's `downloads` subdirectory, or in
+`LINUX_BOOT_SOURCE_CACHE` when set.
+
+Set `LINUX_BOOT_TEST_IMAGES` to the output directory to opt in to the boot
+test. Custom images can use the same test if their `/init` prints
+`BusyBox shell ready` and starts an interactive shell on the serial console.
+Use a Release build for the 180-second boot and command timeout.
 
 ```sh
 cmake -S . -B build/linux-integration -DCMAKE_CXX_COMPILER=clang++ \

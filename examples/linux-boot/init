@@ -1,0 +1,5 @@
+#!/bin/sh
+/bin/busybox mount -t proc proc /proc
+/bin/busybox mount -t sysfs sysfs /sys
+echo "BusyBox shell ready"
+exec /bin/sh -i

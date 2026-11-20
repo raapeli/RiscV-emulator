@@ -17,3 +17,7 @@ build/
 !tests/linux_boot_probe.S
 !tests/test_linux_boot_loader.py
 !tests/test_linux_busybox.py
+!examples/linux-boot/build.sh
+!examples/linux-boot/*.config
+!examples/linux-boot/init
+!examples/linux-boot/initramfs.list
