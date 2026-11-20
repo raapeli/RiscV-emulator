@@ -84,4 +84,17 @@ int main() {
   addend(0x7fffffff);
   require(compute(0x18100143) == 0x7fc00000 && regs.load(Address::FFLAGS) == 16,
           "FMA must signal Invalid for infinity times zero with a quiet NaN addend");
+
+  operands(0x3ff0000010000000ULL, 0, true); // 1 + 2^-24 in double precision.
+  require(compute(0x40104153) == 0x3f800001 && regs.load(Address::FFLAGS) == 1,
+          "Narrowing a halfway value with RMM must round away from zero");
+
+  operands(0xbf000000, 0); // -0.5 as single precision.
+  execute(0xc0100553); // fcvt.wu.s a0, f0, rne
+  require(cpu.xregs->read(10) == 0 && regs.load(Address::FFLAGS) == 1,
+          "Unsigned conversion to rounded zero must report only Inexact");
+  regs.write(Address::FFLAGS, 0);
+  execute(0xc0104553); // fcvt.wu.s a0, f0, rmm
+  require(cpu.xregs->read(10) == 0 && regs.load(Address::FFLAGS) == 16,
+          "Unsigned conversion below zero must saturate and report only Invalid");
 }

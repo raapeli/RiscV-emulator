@@ -144,6 +144,67 @@ void set_operand(mpfr_ptr dest, uint64_t bits, bool wide) {
                  MPFR_RNDN);
 }
 
+FloatResult convert_precision(uint64_t bits, bool source_wide, bool wide,
+                              unsigned rounding) {
+  const uint64_t classification = classify(bits, source_wide);
+  if (classification & NAN_CLASSES)
+    return {wide ? DOUBLE_NAN : SINGLE_NAN,
+            classification == SIGNALING_NAN_CLASS ? INVALID_FLAG : 0};
+
+  MpfrFlags flags;
+  MpfrNumber value(53);
+  set_operand(value.value, bits, source_wide);
+  return round_result(value.value, wide, rounding, false);
+}
+
+FloatResult convert_from_integer(uint64_t bits, unsigned type, bool wide,
+                                 unsigned rounding) {
+  const bool unsigned_integer = type & 1;
+  const bool word = type < 2;
+  MpfrFlags flags;
+  MpfrNumber value(64);
+  if (unsigned_integer)
+    mpfr_set_uj(value.value, word ? static_cast<uint32_t>(bits) : bits, MPFR_RNDN);
+  else
+    mpfr_set_sj(value.value, word ? static_cast<int32_t>(bits)
+                                : static_cast<int64_t>(bits), MPFR_RNDN);
+  return round_result(value.value, wide, rounding, false);
+}
+
+FloatResult convert_to_integer(uint64_t bits, unsigned type, bool wide,
+                               unsigned rounding) {
+  const bool unsigned_integer = type & 1;
+  const bool word = type < 2;
+  const unsigned width = word ? 32 : 64;
+  const unsigned magnitude_bits = width - (unsigned_integer ? 0 : 1);
+  const uint64_t maximum = UINT64_MAX >> (64 - magnitude_bits);
+  const uint64_t minimum = unsigned_integer ? 0 : 1ULL << (width - 1);
+  auto extend = [word](uint64_t value) {
+    return word ? SIGNEXTEND_CAST(value, int32_t) : value;
+  };
+  if (classify(bits, wide) & NAN_CLASSES)
+    return {extend(maximum), INVALID_FLAG};
+
+  MpfrFlags flags;
+  MpfrNumber value(64);
+  set_operand(value.value, bits, wide);
+  constexpr mpfr_rnd_t modes[] = {MPFR_RNDN, MPFR_RNDZ, MPFR_RNDD, MPFR_RNDU};
+  const int inexact = rounding == RMM ? mpfr_round(value.value, value.value)
+                                       : mpfr_rint(value.value, value.value,
+                                                   modes[rounding]);
+
+  const bool below_minimum = unsigned_integer ? mpfr_sgn(value.value) < 0
+      : mpfr_cmp_si_2exp(value.value, -1, magnitude_bits) < 0;
+  if (below_minimum)
+    return {extend(minimum), INVALID_FLAG};
+  if (mpfr_cmp_ui_2exp(value.value, 1, magnitude_bits) >= 0)
+    return {extend(maximum), INVALID_FLAG};
+
+  const uint64_t result = unsigned_integer ? mpfr_get_uj(value.value, MPFR_RNDZ)
+      : static_cast<uint64_t>(mpfr_get_sj(value.value, MPFR_RNDZ));
+  return {extend(result), inexact ? INEXACT_FLAG : 0};
+}
+
 FloatResult arithmetic(unsigned operation, unsigned mode, bool wide,
                        uint64_t lhs, uint64_t rhs, uint64_t addend = 0) {
   const auto canonical_nan = wide ? DOUBLE_NAN : SINGLE_NAN;
@@ -293,6 +354,8 @@ Cpu::ExecResult Cpu::exec_FLOAT(uint64_t inst, std::stringstream *ss) {
 
   const bool wide = format == 1;
   const auto funct3 = FUNCT3(inst);
+  const unsigned rounding =
+      funct3 == DYNAMIC ? cregs->load(csr::Address::FRM) : funct3;
   const auto rs1 = RS1(inst);
   const auto rs2 = RS2(inst);
   const auto rd = RD(inst);
@@ -307,8 +370,6 @@ Cpu::ExecResult Cpu::exec_FLOAT(uint64_t inst, std::stringstream *ss) {
   case MUL:
   case DIV:
   case SQRT: {
-    const unsigned rounding =
-        funct3 == DYNAMIC ? cregs->load(csr::Address::FRM) : funct3;
     if (rounding > RMM || (operation == SQRT && rs2 != 0))
       return std::unexpected(Exception::IllegalInstruction);
     [[maybe_unused]] constexpr const char *mnemonics[][2] = {
@@ -365,6 +426,15 @@ Cpu::ExecResult Cpu::exec_FLOAT(uint64_t inst, std::stringstream *ss) {
     cregs->mark_floating_dirty();
     return {};
   }
+  case 0x08: { // FCVT.S.D and FCVT.D.S
+    if (rounding > RMM || rs2 > 1 || rs2 == format)
+      return std::unexpected(Exception::IllegalInstruction);
+    DB(ss, inst, wide ? "fcvt.d.s" : "fcvt.s.d");
+    const uint64_t source = wide ? single_operand(fregs[rs1]) : fregs[rs1];
+    const auto result = convert_precision(source, !wide, wide, rounding);
+    write_floating_result(rd, wide, result.bits, result.flags);
+    return {};
+  }
   case 0x14: { // FLE, FLT, FEQ
     if (funct3 > 2)
       return std::unexpected(Exception::IllegalInstruction);
@@ -382,6 +452,30 @@ Cpu::ExecResult Cpu::exec_FLOAT(uint64_t inst, std::stringstream *ss) {
     const bool equal = lhs == rhs || ((lhs | rhs) & ~sign_mask) == 0;
     const bool less = !equal && less_than(lhs, rhs, sign_mask);
     xregs->write(rd, funct3 == 2 ? equal : less || (funct3 == 0 && equal));
+    return {};
+  }
+  case 0x18: // FCVT from floating-point to integer
+  case 0x1a: { // FCVT from integer to floating-point
+    if (rounding > RMM || rs2 > 3)
+      return std::unexpected(Exception::IllegalInstruction);
+    if (operation == 0x18) {
+      [[maybe_unused]] constexpr const char *mnemonics[][4] = {
+          {"fcvt.w.s", "fcvt.wu.s", "fcvt.l.s", "fcvt.lu.s"},
+          {"fcvt.w.d", "fcvt.wu.d", "fcvt.l.d", "fcvt.lu.d"},
+      };
+      DB(ss, inst, mnemonics[wide][rs2]);
+      const auto result = convert_to_integer(operand(rs1), rs2, wide, rounding);
+      xregs->write(rd, result.bits);
+      accrue_floating_flags(result.flags);
+    } else {
+      [[maybe_unused]] constexpr const char *mnemonics[][4] = {
+          {"fcvt.s.w", "fcvt.s.wu", "fcvt.s.l", "fcvt.s.lu"},
+          {"fcvt.d.w", "fcvt.d.wu", "fcvt.d.l", "fcvt.d.lu"},
+      };
+      DB(ss, inst, mnemonics[wide][rs2]);
+      const auto result = convert_from_integer(xregs->read(rs1), rs2, wide, rounding);
+      write_floating_result(rd, wide, result.bits, result.flags);
+    }
     return {};
   }
   case 0x1c: // FMV.X.W, FMV.X.D, FCLASS

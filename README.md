@@ -8,6 +8,7 @@ A Risc-V emulator built in modern C++23.
 
 - [X] RV32I/RV64I
 - [X] RV64 compressed integer instructions
+- [X] RV64 single- and double-precision floating point
 - [X] Exceptions 
 - [X] Privileged ISA
 - [X] CSRs
@@ -45,8 +46,6 @@ cd build && ctest --output-on-failure .
 Keep the generated `dumped` directory alongside each suite's `bin` directory.
 The runner uses those symbol addresses to load tests at their link address and
 read results reported by guest trap handlers through `tohost`.
-
-All tests are not yet passing
 
 ## Usage
 

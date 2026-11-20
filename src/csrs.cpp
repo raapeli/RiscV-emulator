@@ -6,6 +6,7 @@ namespace csr {
 
 constexpr uint64_t STATUS_XLEN_MASK = (3ULL << 34) | Mask::UXL;
 constexpr uint64_t STATUS_XLEN_64 = (2ULL << 34) | (2ULL << 32);
+constexpr uint64_t MISA_ALWAYS_ENABLED = Misa::C_EXT | Misa::F_EXT | Misa::D_EXT;
 constexpr unsigned PMP_ENTRIES = 16;
 constexpr uint64_t PHYSICAL_LIMIT = 1ULL << 56;
 constexpr uint64_t PMP_ADDRESS_MASK = (PHYSICAL_LIMIT >> 2) - 1;
@@ -16,7 +17,8 @@ constexpr uint8_t PMP_NAPOT = 0x18;
 constexpr uint8_t PMP_LOCK = 0x80;
 
 Csr::Csr() {
-  regs[Address::MISA] = Misa::XLEN_64 | Misa::C_EXT | Misa::SUPERVISOR | Misa::USER;
+  regs[Address::MISA] = Misa::XLEN_64 | MISA_ALWAYS_ENABLED |
+                        Misa::SUPERVISOR | Misa::USER;
   regs[Address::MSTATUS] = STATUS_XLEN_64;
 };
 
@@ -75,8 +77,8 @@ void Csr::write(uint64_t addr, uint64_t value) {
     break;
   }
   case Address::MISA:
-    // Compressed instructions and two-byte instruction alignment are fixed.
-    regs[Address::MISA] = (value | Misa::C_EXT) & ~(Misa::F_EXT | Misa::D_EXT);
+    // Compressed and floating-point instruction support is fixed.
+    regs[Address::MISA] = value | MISA_ALWAYS_ENABLED;
     break;
   case Address::MIDELEG:
     regs[Address::MIDELEG] = value & Mask::SUPERVISOR_INTERRUPTS;
