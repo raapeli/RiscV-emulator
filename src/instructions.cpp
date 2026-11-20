@@ -320,6 +320,10 @@ Cpu::ExecResult Cpu::exec_LOAD(uint64_t inst, std::stringstream *ss) {
   int64_t imm = IMM_I(inst);
   uint64_t addr = reg1 + imm;
   uint64_t funct3 = FUNCT3(inst);
+  if (funct3 == 7)
+    return std::unexpected(Exception::IllegalInstruction);
+  if (!permits_memory_access(addr, BYTE << (funct3 & 3), csr::Csr::PMP_READ))
+    return std::unexpected(Exception::LoadAccessFault);
 
   switch (funct3) {
   case 0x0:
@@ -363,6 +367,10 @@ Cpu::ExecResult Cpu::exec_STORE(uint64_t inst, std::stringstream *ss) {
   uint64_t reg2 = this->xregs->read(RS2(inst));
   uint64_t dest = reg1 + imm;
   uint64_t funct3 = FUNCT3(inst);
+  if (funct3 > 3)
+    return std::unexpected(Exception::IllegalInstruction);
+  if (!permits_memory_access(dest, BYTE << funct3, csr::Csr::PMP_WRITE))
+    return std::unexpected(Exception::StoreAmoAccessFault);
 
   switch (funct3) {
   case 0x0:
@@ -539,6 +547,9 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
     }
   } else { // CSR Instructions
     uint64_t rs1 = RS1(inst);
+    if (csrAddr >= csr::Address::PMPCFG0 && csrAddr <= csr::Address::PMPCFG15 &&
+        (csrAddr & 1))
+      return std::unexpected(Exception::IllegalInstruction);
     // CSR address bits encode the minimum privilege and read-only access.
     uint64_t csr_mode = (csrAddr >> 8) & 3;
     bool read_only = (csrAddr >> 10) == 3;
@@ -620,6 +631,35 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
   uint64_t rs2 = RS2(inst);
   uint64_t reg2 = this->xregs->read(rs2);
   uint64_t rd = RD(inst);
+  if (funct3 != 0x2 && funct3 != 0x3)
+    return std::unexpected(Exception::IllegalInstruction);
+  uint8_t permissions;
+  switch (funct5) {
+  case 0x2: // LR
+    permissions = csr::Csr::PMP_READ;
+    break;
+  case 0x3: // SC
+    permissions = csr::Csr::PMP_WRITE;
+    break;
+  case 0x0:
+  case 0x1:
+  case 0x4:
+  case 0x8:
+  case 0xC:
+  case 0x10:
+  case 0x14:
+  case 0x18:
+  case 0x1C:
+    permissions = csr::Csr::PMP_READ | csr::Csr::PMP_WRITE;
+    break;
+  default:
+    return std::unexpected(Exception::IllegalInstruction);
+  }
+  uint8_t size = funct3 == 0x2 ? WORD : DOUBLEWORD;
+  if (!permits_memory_access(address, size, permissions))
+    return std::unexpected(funct5 == 0x2 ? Exception::LoadAccessFault
+                                         : Exception::StoreAmoAccessFault);
+
   switch (funct3) {
 
   case 0x2: { // RV32A

@@ -9,6 +9,23 @@ _start:
     lla t0, trap_entry
     csrw mtvec, t0
     csrw mscratch, sp
+
+    # Use TOR entries for user text (RX) and stack (RW).
+    lla t0, __user_text_start
+    srli t0, t0, 2
+    csrw pmpaddr0, t0
+    lla t0, __user_text_end
+    srli t0, t0, 2
+    csrw pmpaddr1, t0
+    lla t0, __user_stack_start
+    srli t0, t0, 2
+    csrw pmpaddr2, t0
+    lla t0, __user_stack_end
+    srli t0, t0, 2
+    csrw pmpaddr3, t0
+    li t0, (0x0b << 24) | (0x0d << 8)
+    csrw pmpcfg0, t0
+
     lla t0, user_start
     csrw mepc, t0
     li t0, (3 << 11)  # Clear mstatus.MPP to select U-mode.
@@ -41,6 +58,7 @@ trap_entry:
     transfer_caller_saved sd
     mv a3, a7
     csrr a4, mcause
+    csrr a5, mepc
     call kernel_trap
 
     csrr t0, mepc
@@ -62,6 +80,26 @@ user_start:
     addi sp, sp, -16
     li t0, 42
     sd t0, 0(sp)
+
+    lla t1, kernel_guard
+.globl user_store_kernel
+user_store_kernel:
+    sb zero, 0(t1)
+
+    li t1, 0x10000000
+    li t2, '!'
+.globl user_store_console
+user_store_console:
+    sb t2, 0(t1)
+
+    lla t1, __user_stack_end
+    li t2, 0x5a
+    sb t2, -1(t1)
+.globl user_store_boundary
+user_store_boundary:
+    sh zero, -1(t1)
+    lbu t3, -1(t1)
+    bne t2, t3, user_failure
 
     li a7, SYS_WRITE
     li a0, 2

@@ -16,7 +16,16 @@ Cpu::Cpu(Bus *bus) {
   this->cregs = new csr::Csr();
 }
 
-uint64_t Cpu::fetch() { return bus->read(pc, WORD); }
+bool Cpu::permits_memory_access(uint64_t addr, uint8_t size,
+                                uint8_t permissions) {
+  bool machine = mode == Mode::MACHINE;
+  if (machine && permissions != csr::Csr::PMP_EXECUTE &&
+      cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MPRV)) {
+    machine = cregs->read_bits(csr::Address::MSTATUS, csr::Mask::MPP_HIGH_BIT,
+                               csr::Mask::MPP_LOW_BIT) == Mode::MACHINE;
+  }
+  return cregs->permits_access(addr, size / 8, permissions, machine);
+}
 
 std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
   uint64_t pending = cregs->load(csr::Address::MIE) &
@@ -95,7 +104,11 @@ void Cpu::oneTick(std::stringstream *debug_str) {
   }
 }
 Cpu::ExecResult Cpu::execute(std::stringstream *ss) {
-  uint64_t inst = this->fetch();
+  if (!permits_memory_access(pc, WORD, csr::Csr::PMP_EXECUTE)) {
+    prev_inst = 0;
+    return std::unexpected(Exception::InstructionAccessFault);
+  }
+  uint64_t inst = bus->read(pc, WORD);
   auto result = this->executeGeneral(inst, ss);
   prev_inst = inst;
   if (!result.has_value()) {

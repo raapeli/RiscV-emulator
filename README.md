@@ -98,5 +98,7 @@ then calls `exit`. The kernel prints `kernel: user exited with status 7` and
 idles. Press Ctrl+C to stop the emulator. With Python 3 installed, CTest checks
 the syscall round trip automatically.
 
-The example uses a trusted user program in flat memory. The kernel validates
-`write` buffers, and hardware memory isolation is a separate milestone.
+The example runs in flat memory with physical memory protection (PMP). User
+code can execute and read its text and can read and write its own stack. The
+kernel demonstrates that direct user stores to kernel RAM, the console, and
+across the user stack boundary fault. Console output succeeds through `write`.

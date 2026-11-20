@@ -21,6 +21,7 @@ SECTIONS
     __user_text_start = .;
     *(.user.text)
     *(.user.rodata)
+    . = ALIGN(4);
     __user_text_end = .;
   } :user_text
   .user.stack ALIGN(0x1000) (NOLOAD) : {

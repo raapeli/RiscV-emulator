@@ -8,12 +8,15 @@ add_executable(test_no_jumps test_no_jumps.cpp)
 add_executable(test_jumps test_jumps.cpp)
 add_executable(test_cpu test_riscv.cpp)
 add_executable(test_bus_bounds test_bus_bounds.cpp)
+add_executable(test_pmp test_pmp.cpp)
 target_link_libraries(test_no_jumps PRIVATE emulator)
 target_link_libraries(test_jumps PRIVATE emulator)
 target_link_libraries(test_cpu PRIVATE emulator)
 target_link_libraries(test_bus_bounds PRIVATE emulator)
+target_link_libraries(test_pmp PRIVATE emulator)
 
 add_test(NAME bus_bounds_test COMMAND test_bus_bounds)
+add_test(NAME pmp_test COMMAND test_pmp)
 
 add_test(NAME rv64ui_test
  COMMAND $<TARGET_FILE:test_cpu> "../../testbins/rv64ui/bin/"

@@ -7,6 +7,9 @@ import time
 
 def main():
     expected = (b"kernel: entering U-mode\n"
+                b"kernel: blocked user store to kernel RAM\n"
+                b"kernel: blocked user store to console\n"
+                b"kernel: blocked user store across stack boundary\n"
                 b"userspace: hello\n"
                 b"kernel: user exited with status 7\n")
     deadline = time.monotonic() + 5

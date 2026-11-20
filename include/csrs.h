@@ -78,6 +78,12 @@ struct Address {
     MENVCFG = 0x30A,
     MENVCFGH = 0x31A, // RV32 only
 
+    PMPCFG0 = 0x3A0,
+    PMPCFG2 = 0x3A2,
+    PMPCFG15 = 0x3AF,
+    PMPADDR0 = 0x3B0,
+    PMPADDR63 = 0x3EF,
+
     // Machine counters
     MCYCLE = 0xB00,
     MINSTRET = 0xB02,
@@ -177,6 +183,12 @@ struct Misa {
 
 class Csr {
 public:
+  enum PmpPermission : uint8_t {
+    PMP_READ = 1,
+    PMP_WRITE = 2,
+    PMP_EXECUTE = 4,
+  };
+
   Csr();
 
   uint64_t load(uint64_t addr);
@@ -196,7 +208,13 @@ public:
   uint64_t read_bit_sstatus(Mask::SSTATUSBit bit);
   void write_bit_sstatus(Mask::SSTATUSBit bit, uint64_t value);
 
+  bool permits_access(uint64_t address, uint8_t bytes, uint8_t permissions,
+                      bool machine) const;
+
   std::array<uint64_t, CSR_SIZE> regs = {};
+
+private:
+  uint8_t pmp_config(unsigned index) const;
 };
 
 } // namespace csr

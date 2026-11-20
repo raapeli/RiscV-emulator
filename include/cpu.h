@@ -109,7 +109,7 @@ public:
 private:
   std::unordered_set<uint64_t> reservations;
 
-  uint64_t fetch();
+  bool permits_memory_access(uint64_t addr, uint8_t size, uint8_t permissions);
   ExecResult executeGeneral(uint64_t inst, std::stringstream *ss = nullptr);
 
   ExecResult exec_OP_IMM_32(uint64_t inst, std::stringstream *ss);

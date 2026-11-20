@@ -7,6 +7,9 @@
 
 extern const char __user_text_start[], __user_text_end[];
 extern const char __user_stack_start[], __user_stack_end[];
+extern const char user_store_kernel[], user_store_console[], user_store_boundary[];
+
+volatile uint8_t kernel_guard = 0x5a;
 
 static void print(const char *text) {
   while (*text)
@@ -57,7 +60,22 @@ static int64_t write_user(uint64_t fd, uintptr_t address, uint64_t length) {
 }
 
 int64_t kernel_trap(uint64_t arg0, uintptr_t arg1, uint64_t arg2,
-                    uint64_t syscall, uint64_t cause) {
+                    uint64_t syscall, uint64_t cause, uintptr_t pc) {
+  if (cause == 7) {
+    if (pc == (uintptr_t)user_store_kernel && kernel_guard == 0x5a) {
+      print("kernel: blocked user store to kernel RAM\n");
+      return arg0;
+    }
+    if (pc == (uintptr_t)user_store_console) {
+      print("kernel: blocked user store to console\n");
+      return arg0;
+    }
+    if (pc == (uintptr_t)user_store_boundary) {
+      print("kernel: blocked user store across stack boundary\n");
+      return arg0;
+    }
+  }
+
   if (cause != 8) {
     print("kernel: unexpected trap\n");
     halt();

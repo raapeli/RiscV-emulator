@@ -18,6 +18,13 @@ Trap Exception::take_trap(Cpu *cpu) {
     tval = 0;
     trap = Trap::Invisible;
     break;
+  case InstructionAccessFault:
+  case LoadAccessFault:
+  case StoreAmoAccessFault:
+    ex_pc = pc;
+    tval = 0;
+    trap = Trap::Contained;
+    break;
   case Breakpoint:
   case EnvironmentCallUmode:
   case EnvironmentCallSmode:
