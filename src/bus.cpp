@@ -5,14 +5,15 @@
 #include <poll.h>
 #include <unistd.h>
 
-Bus::Bus(bool enable_console)
-    : dram(DRAM_SIZE, 0), console_enabled(enable_console) {}
+Bus::Bus(bool enable_console, uint64_t base)
+    : ram_base(base), dram(DRAM_SIZE, 0), console_enabled(enable_console) {}
 
 bool Bus::contains_ram_access(uint64_t addr, uint8_t size) const {
   if (size != BYTE && size != HALFWORD && size != WORD && size != DOUBLEWORD)
     return false;
-  const uint64_t offset = addr - DRAM_BASE;
-  return offset < dram.size() && size / 8 <= dram.size() - offset;
+  const uint64_t offset = addr - ram_base;
+  return addr >= ram_base && offset < dram.size() &&
+         size / 8 <= dram.size() - offset && addr <= UINT64_MAX - (size / 8 - 1);
 }
 
 bool Bus::contains_console_access(uint64_t addr, uint8_t size, bool write) const {
@@ -91,23 +92,23 @@ void Bus::write(uint64_t addr, uint8_t size, uint64_t value) {
 }
 
 uint64_t Bus::read8(uint64_t addr) {
-  return static_cast<uint64_t>(dram[addr - DRAM_BASE]);
+  return static_cast<uint64_t>(dram[addr - ram_base]);
 }
 
 uint64_t Bus::read16(uint64_t addr) {
-  uint64_t index = addr - DRAM_BASE;
+  uint64_t index = addr - ram_base;
   return static_cast<uint64_t>(dram[index] | (dram[index + 1] << 8));
 }
 
 uint64_t Bus::read32(uint64_t addr) {
-  uint64_t index = addr - DRAM_BASE;
+  uint64_t index = addr - ram_base;
   return static_cast<uint64_t>((dram[index]) | (dram[index + 1] << 8) |
                                (dram[index + 2] << 16) |
                                (dram[index + 3] << 24));
 }
 
 uint64_t Bus::read64(uint64_t addr) {
-  uint64_t index = addr - DRAM_BASE;
+  uint64_t index = addr - ram_base;
   return static_cast<uint64_t>((dram[index]) |
                                (static_cast<uint64_t>(dram[index + 1]) << 8) |
                                (static_cast<uint64_t>(dram[index + 2]) << 16) |
@@ -119,24 +120,24 @@ uint64_t Bus::read64(uint64_t addr) {
 }
 
 void Bus::write8(uint64_t addr, uint64_t value) {
-  dram[addr - DRAM_BASE] = static_cast<uint8_t>(value);
+  dram[addr - ram_base] = static_cast<uint8_t>(value);
 }
 
 void Bus::write16(uint64_t addr, uint64_t value) {
-  uint64_t index = addr - DRAM_BASE;
+  uint64_t index = addr - ram_base;
   dram[index] = static_cast<uint8_t>(value & 0xFF);
   dram[index + 1] = static_cast<uint8_t>((value >> 8) & 0xFF);
 }
 
 void Bus::write32(uint64_t addr, uint64_t value) {
-  uint64_t index = addr - DRAM_BASE;
+  uint64_t index = addr - ram_base;
   dram[index] = static_cast<uint8_t>(value & 0xFF);
   dram[index + 1] = static_cast<uint8_t>((value >> 8) & 0xFF);
   dram[index + 2] = static_cast<uint8_t>((value >> 16) & 0xFF);
   dram[index + 3] = static_cast<uint8_t>((value >> 24) & 0xFF);
 }
 void Bus::write64(uint64_t addr, uint64_t value) {
-  uint64_t index = addr - DRAM_BASE;
+  uint64_t index = addr - ram_base;
   dram[index] = static_cast<uint8_t>(value & 0xFF);
   dram[index + 1] = static_cast<uint8_t>((value >> 8) & 0xFF);
   dram[index + 2] = static_cast<uint8_t>((value >> 16) & 0xFF);

@@ -89,7 +89,7 @@ public:
   Cpu(Bus *bus);
   ExecResult execute(std::stringstream *ss = nullptr);
   // Program counter
-  uint64_t pc = DRAM_BASE;
+  uint64_t pc;
   uint64_t prev_inst = 0L; // Privilege level
   Mode mode = Mode::MACHINE;
   csr::Csr *cregs;

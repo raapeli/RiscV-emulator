@@ -10,7 +10,7 @@ void XRegisters::write(uint64_t dest, uint64_t value) {
 
 uint64_t XRegisters::read(uint64_t reg) { return this->registers[reg]; }
 
-Cpu::Cpu(Bus *bus) {
+Cpu::Cpu(Bus *bus) : pc(bus->ram_base) {
   this->xregs = new XRegisters();
   this->bus = bus;
   this->cregs = new csr::Csr();

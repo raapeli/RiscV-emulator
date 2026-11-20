@@ -42,8 +42,8 @@ cd build && ctest --output-on-failure .
 ``` 
 
 Keep the generated `dumped` directory alongside each suite's `bin` directory.
-The runner uses those symbol addresses to read results reported by guest trap
-handlers through `tohost`.
+The runner uses those symbol addresses to load tests at their link address and
+read results reported by guest trap handlers through `tohost`.
 
 All tests are not yet passing
 

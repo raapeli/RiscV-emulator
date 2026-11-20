@@ -16,13 +16,16 @@
 
 constexpr uint64_t EXIT_SYSCALL = 93;
 
-std::optional<uint64_t> find_tohost(const std::filesystem::path &binary,
-                                    uint64_t image_size) {
+struct ImageSymbols {
+  std::optional<uint64_t> start;
+  std::optional<uint64_t> tohost;
+};
+
+ImageSymbols read_image_symbols(const std::filesystem::path &binary) {
   auto dump = binary.parent_path().parent_path() / "dumped" / binary.filename();
   dump.replace_extension(".dump");
   std::ifstream file(dump);
-  std::optional<uint64_t> start;
-  std::optional<uint64_t> tohost;
+  ImageSymbols symbols;
   for (std::string line; std::getline(file, line);) {
     const bool is_start = line.ends_with(" <_start>:");
     if (!is_start && !line.ends_with(" <tohost>:"))
@@ -33,16 +36,12 @@ std::optional<uint64_t> find_tohost(const std::filesystem::path &binary,
     auto parsed = std::from_chars(line.data(), end, addr, 16);
     if (parsed.ec != std::errc{} || parsed.ptr != end)
       continue;
-    (is_start ? start : tohost) = addr;
-    if (start && tohost)
+    (is_start ? symbols.start : symbols.tohost) = addr;
+    if (symbols.start && symbols.tohost)
       break;
   }
 
-  // The flat image is loaded at DRAM_BASE, regardless of its link address.
-  if (!start || !tohost || *tohost < *start || image_size < 4 ||
-      *tohost - *start > image_size - 4)
-    return std::nullopt;
-  return DRAM_BASE + (*tohost - *start);
+  return symbols;
 }
 
 std::size_t load_into_dram(const char *path, Bus *bus) {
@@ -64,14 +63,21 @@ std::size_t load_into_dram(const char *path, Bus *bus) {
     return 0;
 
   for (unsigned long i = 0; i < data.size(); i++) {
-    bus->write(DRAM_BASE + i, BYTE, data[i]);
+    bus->write(bus->ram_base + i, BYTE, data[i]);
   }
   return data.size();
 }
 
 int test_binary(const std::filesystem::directory_entry entry) {
 
-  Bus *bus = new Bus();
+  const auto symbols = read_image_symbols(entry.path());
+  const uint64_t base = symbols.start.value_or(DRAM_BASE);
+  if ((base & 3) || base > UINT64_MAX - (DRAM_SIZE - 1)) {
+    std::cerr << "Invalid image start address\n";
+    return -1;
+  }
+
+  Bus *bus = new Bus(false, base);
   const auto image_size = load_into_dram(entry.path().c_str(), bus);
   if (image_size == 0) {
     std::cerr << "Dram loading failed\n";
@@ -79,8 +85,10 @@ int test_binary(const std::filesystem::directory_entry entry) {
   }
 
   Cpu *cpu = new Cpu(bus);
-  auto tohost_addr = find_tohost(entry.path(), image_size);
-  if (tohost_addr && bus->read(*tohost_addr, WORD) != 0)
+  auto tohost_addr = symbols.tohost;
+  if (tohost_addr && (!symbols.start || *tohost_addr < base || image_size < 4 ||
+                      *tohost_addr - base > image_size - 4 ||
+                      bus->read(*tohost_addr, WORD) != 0))
     tohost_addr.reset();
   uint64_t a0 = 10;
   uint64_t tohost = 0;
@@ -120,7 +128,7 @@ int test_binary(const std::filesystem::directory_entry entry) {
       break;
     } else if (exception != Exception::None &&
                ((!tohost_addr && !handled_trap) ||
-                cpu->pc - DRAM_BASE >= bus->dram.size())) {
+                !bus->contains_ram_access(cpu->pc, WORD))) {
       break;
     }
 

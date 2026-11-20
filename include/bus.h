@@ -11,12 +11,13 @@ const uint64_t CONSOLE_STATUS = CONSOLE_DATA + 1;
 
 class Bus {
 public:
-  explicit Bus(bool enable_console = false);
+  explicit Bus(bool enable_console = false, uint64_t base = DRAM_BASE);
 
   uint64_t read(uint64_t addr, uint8_t size);
   void write(uint64_t addr, uint8_t size, uint64_t value);
   bool contains_ram_access(uint64_t addr, uint8_t size) const;
   bool contains_console_access(uint64_t addr, uint8_t size, bool write) const;
+  const uint64_t ram_base;
   std::vector<uint8_t> dram;
 
 private:

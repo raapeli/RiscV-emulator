@@ -56,4 +56,15 @@ int main() {
     std::cerr << "Store crossing the end of RAM must fault without writing\n";
     return 1;
   }
+
+  constexpr uint64_t linked_base = 0x80000000;
+  Bus linked_bus(false, linked_base);
+  Cpu linked_cpu(&linked_bus);
+  linked_bus.write(linked_base, WORD, 0x02a00513); // li a0, 42
+  if (linked_cpu.pc != linked_base || !linked_cpu.execute() ||
+      linked_cpu.xregs->read(10) != 42 ||
+      linked_bus.contains_ram_access(DRAM_BASE, BYTE)) {
+    std::cerr << "CPU must boot at the configured RAM base\n";
+    return 1;
+  }
 }
