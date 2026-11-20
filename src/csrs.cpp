@@ -10,7 +10,6 @@ constexpr uint64_t STATUS_XLEN_64 = (2ULL << 34) | (2ULL << 32);
 constexpr uint64_t MISA_ALWAYS_ENABLED = Misa::RV32I_64I_128I | Misa::M_EXT |
                                          Misa::A_EXT | Misa::C_EXT |
                                          Misa::F_EXT | Misa::D_EXT;
-constexpr unsigned PMP_ENTRIES = 16;
 constexpr uint64_t PHYSICAL_LIMIT = 1ULL << 56;
 constexpr uint64_t PMP_ADDRESS_MASK = (PHYSICAL_LIMIT >> 2) - 1;
 constexpr uint8_t PMP_MODE_MASK = 0x18;
@@ -154,7 +153,10 @@ void Csr::write(uint64_t addr, uint64_t value) {
         config &= ~uint64_t{PMP_WRITE};
       updated = (updated & ~(0xffULL << shift)) | (config << shift);
     }
-    regs[addr] = updated;
+    if (regs[addr] != updated) {
+      regs[addr] = updated;
+      rebuild_pmp_cache();
+    }
     break;
   }
   case Address::MISA:
@@ -216,6 +218,11 @@ void Csr::write(uint64_t addr, uint64_t value) {
               (PMP_LOCK | PMP_TOR))
         break;
       value &= PMP_ADDRESS_MASK;
+      if (regs[addr] != value) {
+        regs[addr] = value;
+        rebuild_pmp_cache();
+      }
+      break;
     }
     regs[addr] = value;
   }
@@ -229,6 +236,41 @@ void Csr::mark_floating_dirty() {
   write(Address::MSTATUS, regs[Address::MSTATUS] | Mask::FS);
 }
 
+void Csr::rebuild_pmp_cache() {
+  active_pmp_count = 0;
+
+  for (unsigned i = 0; i < PMP_ENTRIES; ++i) {
+    const uint8_t config = pmp_config(i);
+    const uint64_t encoded = regs[Address::PMPADDR0 + i];
+
+    uint64_t start;
+    uint64_t end;
+
+    switch (config & PMP_MODE_MASK) {
+    case PMP_TOR:
+      start = i == 0 ? 0 : regs[Address::PMPADDR0 + i - 1] << 2;
+      end = encoded << 2;
+      break;
+    case PMP_NA4:
+      start = encoded << 2;
+      end = start + 4;
+      break;
+
+    case PMP_NAPOT: {
+      // PMPADDR holds at most 54 bits, so even the largest region fits here.
+      const unsigned ones = std::countr_one(encoded);
+      start = (encoded & (UINT64_MAX << ones)) << 2;
+      end = std::min(start + (uint64_t{8} << ones), PHYSICAL_LIMIT);
+      break;
+    }
+    default:
+      continue;
+    }
+    if (start < end)
+      pmp_cache[active_pmp_count++] = {start, end, config};
+  }
+}
+
 uint8_t Csr::pmp_config(unsigned index) const {
   return regs[Address::PMPCFG0 + (index / 8) * 2] >> ((index % 8) * 8);
 }
@@ -237,37 +279,18 @@ bool Csr::permits_access(uint64_t address, uint8_t bytes, uint8_t permissions,
                          bool machine) const {
   if (bytes == 0 || address > UINT64_MAX - (bytes - 1))
     return false;
+
   const uint64_t last = address + bytes - 1;
 
-  for (unsigned index = 0; index < PMP_ENTRIES; ++index) {
-    const uint8_t config = pmp_config(index);
-    const uint64_t encoded = regs[Address::PMPADDR0 + index];
-    uint64_t start;
-    uint64_t end;
-    switch (config & PMP_MODE_MASK) {
-    case PMP_TOR:
-      start = index == 0 ? 0 : regs[Address::PMPADDR0 + index - 1] << 2;
-      end = encoded << 2;
-      break;
-    case PMP_NA4:
-      start = encoded << 2;
-      end = start + 4;
-      break;
-    case PMP_NAPOT: {
-      unsigned ones = std::countr_one(encoded);
-      start = (encoded & ~((1ULL << ones) - 1)) << 2;
-      end = std::min(start + (uint64_t{1} << (ones + 3)), PHYSICAL_LIMIT);
-      break;
-    }
-    default:
+  for (unsigned i = 0; i < active_pmp_count; ++i) {
+    const auto &region = pmp_cache[i];
+
+    if (address >= region.end || last < region.start)
       continue;
-    }
-    if (start >= end || address >= end || last < start)
-      continue;
-    if (address < start || last >= end)
+    if (address < region.start || last >= region.end)
       return false;
-    return (machine && !(config & PMP_LOCK)) ||
-           (config & permissions) == permissions;
+    return (machine && !(region.config & PMP_LOCK)) ||
+           (region.config & permissions) == permissions;
   }
   return machine;
 }

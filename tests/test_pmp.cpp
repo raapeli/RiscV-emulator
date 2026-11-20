@@ -86,7 +86,36 @@ static void test_cpu_accesses() {
           "Machine mode must bypass unlocked entry permissions");
 }
 
+static void test_cache_updates() {
+  Csr first;
+  Csr second;
+  constexpr uint64_t base = DRAM_BASE;
+  first.write(Address::PMPADDR0, base >> 2);
+  first.write(Address::PMPADDR0 + 1, (base + 8) >> 2);
+  first.write(Address::PMPCFG0, 0x0900); // Read-only TOR entry 1.
+  require(first.permits_access(base, 8, Csr::PMP_READ, false) &&
+              !second.permits_access(base, 1, Csr::PMP_READ, false),
+          "Each hart must have its own decoded PMP regions");
+
+  first.write(Address::PMPADDR0, (base + 4) >> 2);
+  require(!first.permits_access(base, 1, Csr::PMP_READ, false) &&
+              first.permits_access(base + 4, 4, Csr::PMP_READ, false),
+          "Writing the preceding address must update a TOR region's lower bound");
+
+  second.write(Address::PMPADDR0, UINT64_MAX);
+  second.write(Address::PMPCFG0, 0x19); // Maximum-sized read-only NAPOT entry.
+  require(second.permits_access((1ULL << 56) - 1, 1, Csr::PMP_READ, false) &&
+              !second.permits_access(1ULL << 56, 1, Csr::PMP_READ, false) &&
+              !first.permits_access(base, 1, Csr::PMP_READ, false),
+          "Maximum NAPOT coverage must respect the physical limit and hart");
+  first.write(Address::PMPCFG0, 0);
+  require(!first.permits_access(base + 4, 4, Csr::PMP_READ, false) &&
+              second.permits_access(base, 1, Csr::PMP_READ, false),
+          "Disabling a region must remove it from only its owning hart");
+}
+
 int main() {
   test_matching();
   test_cpu_accesses();
+  test_cache_updates();
 }

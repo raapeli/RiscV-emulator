@@ -228,10 +228,21 @@ public:
   bool permits_access(uint64_t address, uint8_t bytes, uint8_t permissions,
                       bool machine) const;
 
-  std::array<uint64_t, CSR_SIZE> regs = {};
-
 private:
+  static constexpr unsigned PMP_ENTRIES = 16;
+
+  struct PmpRegion {
+    uint64_t start;
+    uint64_t end; // Exclusive.
+    uint8_t config;
+  };
+
   uint8_t pmp_config(unsigned index) const;
+  void rebuild_pmp_cache();
+
+  std::array<uint64_t, CSR_SIZE> regs = {};
+  std::array<PmpRegion, PMP_ENTRIES> pmp_cache{};
+  unsigned active_pmp_count = 0;
   const uint64_t device_mask;
   uint64_t platform_pending = 0;
 };
