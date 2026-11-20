@@ -52,6 +52,10 @@ int main() {
     cpu.pc = pc;
     return cpu.execute();
   };
+  auto fence = [&] {
+    bus.write(code + 4, WORD, 0x12000073); // sfence.vma zero, zero
+    require(step(virtual_code + 4).has_value(), "SFENCE.VMA must execute in S-mode");
+  };
   auto result = step();
   require(!result && result.error() == Exception::LoadPageFault &&
               !(bus.read(data_pte, DOUBLEWORD) & accessed),
@@ -63,15 +67,47 @@ int main() {
               (bus.read(leaf + 4 * 8, DOUBLEWORD) & accessed),
           "Translated fetch and load must set A without setting D");
 
+  regs.write(Address::SSTATUS, 0);
+  result = step();
+  require(!result && result.error() == Exception::LoadPageFault,
+          "A cached user mapping must still require SUM for supervisor loads");
+  regs.write(Address::SSTATUS, csr::Mask::SUM);
+
   bus.write(code, WORD, 0x00052023); // sw zero, 0(a0)
   require(step().has_value() && bus.read(data, WORD) == 0 &&
               (bus.read(data_pte, DOUBLEWORD) & dirty),
           "Translated store must set D and write to the mapped address");
 
   bus.write(code, WORD, 0x00052583);
+  constexpr uint64_t replacement = data + 0x5000;
+  bus.write(replacement, WORD, 77);
+  bus.write(data_pte, DOUBLEWORD, pte(replacement, read | write | user));
+  require(step().has_value() && cpu.xregs->read(11) == 0,
+          "An unfenced PTE change must leave the cached translation usable");
+  regs.write(Address::SATP, satp | (1ULL << 44)); // Switch to ASID 1.
+  require(step().has_value() && cpu.xregs->read(11) == 77,
+          "A different ASID must miss the existing translation");
+  regs.write(Address::SATP, satp);
+  fence();
+  require(step().has_value() && cpu.xregs->read(11) == 77,
+          "SFENCE.VMA must make the remapped page visible");
+
+  regs.write(Address::PMPADDR0 + 1, UINT64_MAX);
+  regs.write(Address::PMPADDR0, root >> 2);
+  regs.write(Address::PMPCFG0, 0x1f10); // Deny the root PTE, allow other memory.
+  result = step();
+  require(!result && result.error() == Exception::InstructionAccessFault,
+          "A PMP change must invalidate translations of newly blocked page tables");
+  regs.write(Address::PMPCFG0, 0x1f00);
+
   bus.write(data_pte, DOUBLEWORD, pte(data, execute | user));
+  fence();
   regs.write(Address::SSTATUS, csr::Mask::SUM | csr::Mask::MXR);
   require(step().has_value(), "MXR must allow a load from an execute-only page");
+  regs.write(Address::SSTATUS, csr::Mask::SUM);
+  result = step();
+  require(!result && result.error() == Exception::LoadPageFault,
+          "A cached execute-only mapping must still require MXR for loads");
   result = step(virtual_data);
   require(!result && result.error() == Exception::InstructionPageFault,
           "SUM must not allow supervisor execution from a user page");
@@ -89,11 +125,13 @@ int main() {
   bus.write(code + last_parcel, HALFWORD, 0x0513); // Low half of li a0, 7.
   bus.write(data, HALFWORD, 0x0070);
   bus.write(data_pte, DOUBLEWORD, pte(data, execute));
+  fence();
   require(step(virtual_code + last_parcel).has_value() &&
               cpu.pc == virtual_data + 2 && cpu.xregs->read(10) == 7,
           "Split instruction fetch must translate both parcels");
 
   bus.write(data_pte, DOUBLEWORD, 0);
+  fence();
   cpu.mode = Mode::SUPERVISOR;
   cpu.pc = virtual_code + last_parcel;
   cpu.oneTick();
@@ -105,4 +143,12 @@ int main() {
   bus.write(code + last_parcel, HALFWORD, 0x0001); // c.nop
   require(step(virtual_code + last_parcel).has_value() && cpu.pc == virtual_data,
           "A compressed instruction must fetch only its own parcel");
+
+  constexpr uint64_t superpage = 1ULL << 30;
+  bus.write(root + 8, DOUBLEWORD, pte(0, read | execute));
+  bus.write(data, WORD, 84);
+  cpu.xregs->write(10, superpage + data);
+  require(step(superpage + code).has_value() &&
+              step(superpage + code).has_value() && cpu.xregs->read(11) == 84,
+          "Cached addresses within a superpage must preserve the full offset");
 }

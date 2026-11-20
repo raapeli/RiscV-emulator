@@ -237,6 +237,7 @@ void Csr::mark_floating_dirty() {
 }
 
 void Csr::rebuild_pmp_cache() {
+  ++pmp_revision_counter;
   active_pmp_count = 0;
 
   for (unsigned i = 0; i < PMP_ENTRIES; ++i) {

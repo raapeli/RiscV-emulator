@@ -109,6 +109,16 @@ private:
   uint64_t next_pc;
   std::array<uint64_t, REGISTER_COUNT> fregs{};
 
+  struct TlbEntry {
+    uint64_t satp;
+    uint64_t virtual_page;
+    uint64_t physical_page;
+    uint8_t flags;
+  };
+  std::array<TlbEntry, 64> tlb{};
+  uint64_t tlb_pmp_revision = 0;
+
+  void flush_tlb();
   using AddressResult = std::expected<uint64_t, Exception::ExceptionValue>;
   AddressResult resolve_memory_access(uint64_t addr, uint8_t size,
                                       uint8_t permissions);

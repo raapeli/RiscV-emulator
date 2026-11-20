@@ -474,7 +474,8 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       if (mode == Mode::USER || trap_vm)
         return std::unexpected(Exception::IllegalInstruction);
 
-      // Address translation is uncached.
+      // A full flush also covers the address- and ASID-specific forms.
+      flush_tlb();
       return {};
     } else if (csrAddr == 0x001 && zero_registers) { // ebreak
       DB(ss, inst, "ebreak");

@@ -227,6 +227,7 @@ public:
 
   bool permits_access(uint64_t address, uint8_t bytes, uint8_t permissions,
                       bool machine) const;
+  uint64_t pmp_revision() const { return pmp_revision_counter; }
 
 private:
   static constexpr unsigned PMP_ENTRIES = 16;
@@ -243,6 +244,7 @@ private:
   std::array<uint64_t, CSR_SIZE> regs = {};
   std::array<PmpRegion, PMP_ENTRIES> pmp_cache{};
   unsigned active_pmp_count = 0;
+  uint64_t pmp_revision_counter = 0;
   const uint64_t device_mask;
   uint64_t platform_pending = 0;
 };
