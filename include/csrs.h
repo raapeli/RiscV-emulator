@@ -196,10 +196,12 @@ public:
     PMP_EXECUTE = 4,
   };
 
-  Csr();
+  explicit Csr(uint64_t device_mask = 0);
 
   uint64_t load(uint64_t addr);
+  uint64_t value_for_update(uint64_t addr, uint64_t observed) const;
   void write(uint64_t addr, uint64_t value);
+  void set_platform_pending(uint64_t pending);
   bool floating_enabled() const;
   void mark_floating_dirty();
 
@@ -224,6 +226,8 @@ public:
 
 private:
   uint8_t pmp_config(unsigned index) const;
+  const uint64_t device_mask;
+  uint64_t platform_pending = 0;
 };
 
 } // namespace csr

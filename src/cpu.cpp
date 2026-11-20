@@ -13,7 +13,9 @@ uint64_t XRegisters::read(uint64_t reg) { return this->registers[reg]; }
 Cpu::Cpu(Bus *bus) : pc(bus->ram_base) {
   this->xregs = new XRegisters();
   this->bus = bus;
-  this->cregs = new csr::Csr();
+  const uint64_t clint_mask = bus->clint() ? csr::Mask::MSIP | csr::Mask::MTIP : 0;
+  const uint64_t plic_mask = bus->plic() ? csr::Mask::MEIP | csr::Mask::SEIP : 0;
+  this->cregs = new csr::Csr(clint_mask | plic_mask);
 }
 
 std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
@@ -68,6 +70,15 @@ void Cpu::oneTick(std::stringstream *debug_str) {
 
   // Tick time
   cregs->write(csr::Address::CYCLE, cregs->load(csr::Address::CYCLE) + 1);
+  uint64_t pending = 0;
+  if (auto *clint = bus->clint()) {
+    clint->tick();
+    cregs->write(csr::Address::TIME, clint->time());
+    pending |= clint->pending_interrupts();
+  }
+  if (auto *plic = bus->plic())
+    pending |= plic->pending_interrupts();
+  cregs->set_platform_pending(pending);
 
   // Take an interrupt
   auto interrupt = this->check_pending_interrupt();

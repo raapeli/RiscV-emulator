@@ -559,9 +559,16 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
         (csrAddr == csr::Address::SATP && trap_vm))
       return std::unexpected(Exception::IllegalInstruction);
 
+    if (csrAddr == csr::Address::TIME && bus->clint() &&
+        mode != Mode::MACHINE &&
+        (!cregs->read_bit(csr::Address::MCOUNTEREN, 1) ||
+         (mode == Mode::USER && !cregs->read_bit(csr::Address::SCOUNTEREN, 1))))
+      return std::unexpected(Exception::IllegalInstruction);
+
     uint64_t reg1 = xregs->read(rs1);
     uint64_t rd = RD(inst);
     uint64_t csrVal = swap && rd == 0 ? 0 : cregs->load(csrAddr);
+    uint64_t update_value = cregs->value_for_update(csrAddr, csrVal);
 
     switch (funct3) {
     case 0x1:
@@ -573,13 +580,13 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
     case 0x2:
       DB(ss, inst, "csrrs"); // csrrs
       if (writes_csr)
-        cregs->write(csrAddr, csrVal | reg1);
+        cregs->write(csrAddr, update_value | reg1);
       xregs->write(rd, csrVal);
       break;
     case 0x3:
       DB(ss, inst, "csrrc"); // csrrc
       if (writes_csr)
-        cregs->write(csrAddr, csrVal & ~reg1);
+        cregs->write(csrAddr, update_value & ~reg1);
       xregs->write(rd, csrVal);
       break;
     case 0x5:
@@ -591,13 +598,13 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
     case 0x6:
       DB(ss, inst, "csrrsi"); // csrrsi
       if (writes_csr)
-        cregs->write(csrAddr, csrVal | rs1);
+        cregs->write(csrAddr, update_value | rs1);
       xregs->write(rd, csrVal);
       break;
     case 0x7:
       DB(ss, inst, "csrrci"); // csrrci
       if (writes_csr)
-        cregs->write(csrAddr, csrVal & ~rs1);
+        cregs->write(csrAddr, update_value & ~rs1);
       xregs->write(rd, csrVal);
       break;
     default:

@@ -6,7 +6,9 @@ namespace csr {
 
 constexpr uint64_t STATUS_XLEN_MASK = (3ULL << 34) | Mask::UXL;
 constexpr uint64_t STATUS_XLEN_64 = (2ULL << 34) | (2ULL << 32);
-constexpr uint64_t MISA_ALWAYS_ENABLED = Misa::C_EXT | Misa::F_EXT | Misa::D_EXT;
+constexpr uint64_t MISA_ALWAYS_ENABLED =
+    Misa::RV32I_64I_128I | Misa::M_EXT | Misa::A_EXT | Misa::C_EXT |
+    Misa::F_EXT | Misa::D_EXT;
 constexpr unsigned PMP_ENTRIES = 16;
 constexpr uint64_t PHYSICAL_LIMIT = 1ULL << 56;
 constexpr uint64_t PMP_ADDRESS_MASK = (PHYSICAL_LIMIT >> 2) - 1;
@@ -16,7 +18,7 @@ constexpr uint8_t PMP_NA4 = 0x10;
 constexpr uint8_t PMP_NAPOT = 0x18;
 constexpr uint8_t PMP_LOCK = 0x80;
 
-Csr::Csr() {
+Csr::Csr(uint64_t device_mask) : device_mask(device_mask) {
   regs[Address::MISA] = Misa::XLEN_64 | MISA_ALWAYS_ENABLED |
                         Misa::SUPERVISOR | Misa::USER;
   regs[Address::MSTATUS] = STATUS_XLEN_64;
@@ -33,7 +35,9 @@ uint64_t Csr::load(uint64_t addr) {
   case Address::SIE:
     return regs[Address::MIE] & regs[Address::MIDELEG];
   case Address::SIP:
-    return regs[Address::MIP] & regs[Address::MIDELEG];
+    return load(Address::MIP) & regs[Address::MIDELEG];
+  case Address::MIP:
+    return regs[Address::MIP] | platform_pending;
   case Address::TSELECT:
     // A write of trigger index zero reads back a different index when empty.
     return 1;
@@ -46,6 +50,15 @@ uint64_t Csr::load(uint64_t addr) {
   default:
     return regs[addr];
   }
+}
+
+uint64_t Csr::value_for_update(uint64_t addr, uint64_t observed) const {
+  // Reads include the device signal. CSR updates use the software pending bits.
+  return addr == Address::MIP ? regs[addr] : observed;
+}
+
+void Csr::set_platform_pending(uint64_t pending) {
+  platform_pending = pending & device_mask;
 }
 
 void Csr::write(uint64_t addr, uint64_t value) {
@@ -77,8 +90,7 @@ void Csr::write(uint64_t addr, uint64_t value) {
     break;
   }
   case Address::MISA:
-    // Compressed and floating-point instruction support is fixed.
-    regs[Address::MISA] = value | MISA_ALWAYS_ENABLED;
+    // The implemented ISA and privilege modes are read-only.
     break;
   case Address::MIDELEG:
     regs[Address::MIDELEG] = value & Mask::SUPERVISOR_INTERRUPTS;
@@ -101,11 +113,17 @@ void Csr::write(uint64_t addr, uint64_t value) {
     break;
   }
   case Address::SIP: {
-    uint64_t val = (regs[Address::MIP] & ~regs[Address::MIDELEG]) |
-                   (value & regs[Address::MIDELEG]);
+    uint64_t writable = regs[Address::MIDELEG];
+    if (device_mask)
+      writable &= Mask::SSIP;
+    uint64_t val = (regs[Address::MIP] & ~writable) | (value & writable);
     regs[Address::MIP] = val;
     break;
   }
+  case Address::MIP:
+    value &= ~(device_mask & (Mask::MEIP | Mask::MSIP | Mask::MTIP));
+    regs[addr] = value;
+    break;
   case Address::TSELECT:
   case Address::TDATA1:
   case Address::TDATA2:

@@ -63,8 +63,12 @@ firmware in machine mode with hart ID zero and the DTB address in `a0` and `a1`.
 
 The firmware, kernel, initramfs, and DTB start at `0x80000000`, `0x80200000`,
 `0x84000000`, and `0x87e00000` respectively. The supplied DTB is passed through
-as-is. The loader is the first stage of Linux platform support. The timer,
-interrupt controller, and serial UART are still pending.
+as-is. Linux mode exposes a single-hart CLINT at `0x02000000` and a PLIC at
+`0x0c000000`. The timer advances once per emulator tick. The serial UART and
+Linux boot artifacts are still pending.
+
+Other machine configurations can attach either interrupt device independently
+by supplying its MMIO base through `Bus::InterruptMap`.
 
 ### Polled console
 

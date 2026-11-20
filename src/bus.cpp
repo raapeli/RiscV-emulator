@@ -5,8 +5,18 @@
 #include <poll.h>
 #include <unistd.h>
 
-Bus::Bus(bool enable_console, uint64_t base, uint64_t size)
-    : ram_base(base), dram(size, 0), console_enabled(enable_console) {}
+Bus::Bus(bool enable_console, uint64_t base, uint64_t size,
+         InterruptMap interrupts)
+    : ram_base(base), dram(size, 0), console_enabled(enable_console) {
+  if (interrupts.clint)
+    clint_device.emplace(*interrupts.clint);
+  if (interrupts.plic)
+    plic_device.emplace(*interrupts.plic);
+}
+
+Clint *Bus::clint() { return clint_device ? &*clint_device : nullptr; }
+
+Plic *Bus::plic() { return plic_device ? &*plic_device : nullptr; }
 
 bool Bus::contains_ram_access(uint64_t addr, uint8_t size) const {
   if (size != BYTE && size != HALFWORD && size != WORD && size != DOUBLEWORD)
@@ -19,6 +29,12 @@ bool Bus::contains_ram_access(uint64_t addr, uint8_t size) const {
 bool Bus::contains_console_access(uint64_t addr, uint8_t size, bool write) const {
   return console_enabled && size == BYTE &&
          (addr == CONSOLE_DATA || (!write && addr == CONSOLE_STATUS));
+}
+
+bool Bus::contains_mmio_access(uint64_t addr, uint8_t size, bool write) const {
+  return contains_console_access(addr, size, write) ||
+         (clint_device && clint_device->contains_access(addr, size)) ||
+         (plic_device && plic_device->contains_access(addr, size));
 }
 
 void Bus::poll_console_input() {
@@ -42,6 +58,10 @@ void Bus::poll_console_input() {
 }
 
 uint64_t Bus::read(uint64_t addr, uint8_t size) {
+  if (clint_device && clint_device->contains_access(addr, size))
+    return clint_device->read(addr, size);
+  if (plic_device && plic_device->contains_access(addr, size))
+    return plic_device->read(addr, size);
   if (contains_console_access(addr, size, false)) {
     poll_console_input();
     if (addr == CONSOLE_STATUS)
@@ -69,6 +89,14 @@ uint64_t Bus::read(uint64_t addr, uint8_t size) {
 }
 
 void Bus::write(uint64_t addr, uint8_t size, uint64_t value) {
+  if (clint_device && clint_device->contains_access(addr, size)) {
+    clint_device->write(addr, size, value);
+    return;
+  }
+  if (plic_device && plic_device->contains_access(addr, size)) {
+    plic_device->write(addr, size, value);
+    return;
+  }
   if (contains_console_access(addr, size, true)) {
     std::cout.put(static_cast<char>(value & 0xFF)).flush();
     return;

@@ -22,6 +22,14 @@ _start:
     li t1, 'I'
     bne t0, t1, fail
 
+    li t0, 0x02004000
+    ld t0, 0(t0)
+    li t1, -1
+    bne t0, t1, fail
+    li t0, 0x0c000000
+    lw t0, 0(t0)
+    bnez t0, fail
+
     li t0, 'P'
     j report
 fail:

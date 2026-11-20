@@ -1,5 +1,8 @@
 #pragma once
 
+#include "devices/clint.h"
+#include "devices/plic.h"
+
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -11,17 +14,26 @@ const uint64_t CONSOLE_STATUS = CONSOLE_DATA + 1;
 
 class Bus {
 public:
+  struct InterruptMap {
+    std::optional<uint64_t> clint;
+    std::optional<uint64_t> plic;
+  };
   explicit Bus(bool enable_console = false, uint64_t base = DRAM_BASE,
-               uint64_t size = DRAM_SIZE);
+               uint64_t size = DRAM_SIZE, InterruptMap interrupts = {});
 
   uint64_t read(uint64_t addr, uint8_t size);
   void write(uint64_t addr, uint8_t size, uint64_t value);
   bool contains_ram_access(uint64_t addr, uint8_t size) const;
-  bool contains_console_access(uint64_t addr, uint8_t size, bool write) const;
+  bool contains_mmio_access(uint64_t addr, uint8_t size, bool write) const;
+  Clint *clint();
+  Plic *plic();
   const uint64_t ram_base;
   std::vector<uint8_t> dram;
 
 private:
+  bool contains_console_access(uint64_t addr, uint8_t size, bool write) const;
+  std::optional<Clint> clint_device;
+  std::optional<Plic> plic_device;
   void poll_console_input();
   bool console_enabled;
   bool console_input_closed = false;

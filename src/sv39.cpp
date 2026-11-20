@@ -18,9 +18,9 @@ bool Cpu::permits_physical_access(uint64_t addr, uint8_t size,
   using csr::Csr;
   bool mapped = bus->contains_ram_access(addr, size) ||
                 (permissions == Csr::PMP_READ &&
-                 bus->contains_console_access(addr, size, false)) ||
+                 bus->contains_mmio_access(addr, size, false)) ||
                 (permissions == Csr::PMP_WRITE &&
-                 bus->contains_console_access(addr, size, true));
+                 bus->contains_mmio_access(addr, size, true));
   return mapped && cregs->permits_access(addr, size / 8, permissions,
                                          effective_mode == Mode::MACHINE);
 }
