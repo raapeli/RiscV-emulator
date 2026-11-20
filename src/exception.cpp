@@ -2,18 +2,41 @@
 #include "cpu.h"
 #include "csrs.h"
 
-uint64_t Exception::epc(uint64_t pc) {
-  if (exception == InstructionAddressMisaligned || exception == Breakpoint ||
-      (exception <= 12 && exception >= 8))
-    return pc;
-  return pc + 4;
-}
-
 Trap Exception::take_trap(Cpu *cpu) {
+  const uint64_t pc = cpu->pc;
+  uint64_t ex_pc = pc + 4;
+  uint64_t tval = ex_pc;
+  Trap trap = Trap::Fatal;
+  switch (exception) {
+  case InstructionAddressMisaligned:
+    ex_pc = pc;
+    tval = 0;
+    trap = Trap::Contained;
+    break;
+  case IllegalInstruction:
+    ex_pc = pc;
+    tval = 0;
+    trap = Trap::Invisible;
+    break;
+  case Breakpoint:
+  case EnvironmentCallUmode:
+  case EnvironmentCallSmode:
+  case EnvironmentCallMmode:
+    ex_pc = tval = pc;
+    trap = Trap::Requested;
+    break;
+  case InstructionPageFault:
+    ex_pc = tval = pc;
+    trap = Trap::Invisible;
+    break;
+  case LoadPageFault:
+  case StoreAmoPageFault:
+    trap = Trap::Invisible;
+    break;
+  default:
+    break;
+  }
 
-  uint64_t ex_pc = epc(cpu->pc);
-  // The implementation may report zero for an instruction alignment trap.
-  uint64_t tval = exception == InstructionAddressMisaligned ? 0 : ex_pc;
   Mode mode = cpu->mode;
 
   bool medeleg_f = (cpu->cregs->load(csr::Address::MEDELEG) >> exception) & 1;
@@ -53,38 +76,7 @@ Trap Exception::take_trap(Cpu *cpu) {
                            csr::Mask::MPP_LOW_BIT, mode);
   }
 
-  switch (exception) {
-  case Exception::InstructionAddressMisaligned:
-    return Trap::Contained;
-
-  case Exception::InstructionAccessFault:
-    return Trap::Fatal;
-
-  case Exception::IllegalInstruction:
-    return Trap::Invisible;
-
-  case Exception::Breakpoint:
-    return Trap::Requested;
-
-  case Exception::LoadAddressMisaligned:
-  case Exception::LoadAccessFault:
-  case Exception::StoreAmoAddressMisaligned:
-  case Exception::StoreAmoAccessFault:
-    return Trap::Fatal;
-
-  case Exception::EnvironmentCallUmode:
-  case Exception::EnvironmentCallSmode:
-  case Exception::EnvironmentCallMmode:
-    return Trap::Requested;
-
-  case Exception::InstructionPageFault:
-  case Exception::LoadPageFault:
-  case Exception::StoreAmoPageFault:
-    return Trap::Invisible;
-
-  default:
-    return Trap::Fatal; // or handle other cases
-  }
+  return trap;
 }
 
 std::string Exception::get_exception_str(Exception::ExceptionValue excpt) {

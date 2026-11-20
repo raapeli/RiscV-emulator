@@ -519,9 +519,18 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       return std::unexpected(Exception::IllegalInstruction);
     }
   } else { // CSR Instructions
-    uint64_t reg1 = xregs->read(RS1(inst));
+    uint64_t rs1 = RS1(inst);
+    // CSR address bits encode the minimum privilege and read-only access.
+    uint64_t csr_mode = (csrAddr >> 8) & 3;
+    bool read_only = (csrAddr >> 10) == 3;
+    bool swap = (funct3 & 3) == 1;
+    bool writes_csr = swap || rs1 != 0;
+    if (mode < csr_mode || (read_only && writes_csr))
+      return std::unexpected(Exception::IllegalInstruction);
+
+    uint64_t reg1 = xregs->read(rs1);
     uint64_t rd = RD(inst);
-    uint64_t csrVal = cregs->load(csrAddr);
+    uint64_t csrVal = swap && rd == 0 ? 0 : cregs->load(csrAddr);
 
     switch (funct3) {
     case 0x1:
@@ -532,13 +541,13 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       break;
     case 0x2:
       DB(ss, inst, "csrrs"); // csrrs
-      if (RS1(inst) != 0)
+      if (writes_csr)
         cregs->write(csrAddr, csrVal | reg1);
       xregs->write(rd, csrVal);
       break;
     case 0x3:
       DB(ss, inst, "csrrc"); // csrrc
-      if (RS1(inst) != 0)
+      if (writes_csr)
         cregs->write(csrAddr, csrVal & ~reg1);
       xregs->write(rd, csrVal);
       break;
@@ -546,18 +555,18 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       DB(ss, inst, "csrrwi"); // csrrwi
       if (rd != 0)
         xregs->write(rd, csrVal);
-      cregs->write(csrAddr, RS1(inst)); // zimm is in rs1 field
+      cregs->write(csrAddr, rs1); // zimm is in rs1 field
       break;
     case 0x6:
       DB(ss, inst, "csrrsi"); // csrrsi
-      if (RS1(inst) != 0)
-        cregs->write(csrAddr, csrVal | RS1(inst));
+      if (writes_csr)
+        cregs->write(csrAddr, csrVal | rs1);
       xregs->write(rd, csrVal);
       break;
     case 0x7:
       DB(ss, inst, "csrrci"); // csrrci
-      if (RS1(inst) != 0)
-        cregs->write(csrAddr, csrVal & ~RS1(inst));
+      if (writes_csr)
+        cregs->write(csrAddr, csrVal & ~rs1);
       xregs->write(rd, csrVal);
       break;
     default:

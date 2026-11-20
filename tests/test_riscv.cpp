@@ -63,8 +63,12 @@ int test_binary(const std::filesystem::directory_entry entry) {
     // The pass/fail macros set a7 to the exit syscall number.
     const bool delegated_ecall = is_ecall && cpu->mode == Mode::SUPERVISOR &&
                                  cpu->xregs->read(17) != EXIT_SYSCALL;
+    const bool csr_trap = exception == Exception::IllegalInstruction &&
+                          OPCODE(cpu->prev_inst) == 0x73 &&
+                          (FUNCT3(cpu->prev_inst) & 3) != 0;
     const bool handled_trap = delegated_ecall || exception == Exception::Breakpoint ||
-                              exception == Exception::InstructionAddressMisaligned;
+                              exception == Exception::InstructionAddressMisaligned ||
+                              csr_trap;
     if (is_ecall && !delegated_ecall) {
       a0 = cpu->xregs->read(10);
       reached_ecall = true;

@@ -41,8 +41,6 @@ struct Exception {
 
   ExceptionValue exception = Exception::None;
 
-  uint64_t epc(uint64_t pc);
-  uint64_t trap_value(uint64_t pc);
   Trap take_trap(Cpu *cpu);
 
   std::string get_exception_str(Exception::ExceptionValue excpt);
