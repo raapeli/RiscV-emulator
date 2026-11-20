@@ -22,7 +22,7 @@ Trap Exception::take_trap(Cpu *cpu) {
   case LoadAccessFault:
   case StoreAmoAccessFault:
     ex_pc = pc;
-    tval = 0;
+    tval = access_address;
     trap = Trap::Contained;
     break;
   case Breakpoint:

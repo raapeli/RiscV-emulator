@@ -15,10 +15,11 @@ public:
 
   uint64_t read(uint64_t addr, uint8_t size);
   void write(uint64_t addr, uint8_t size, uint64_t value);
+  bool contains_ram_access(uint64_t addr, uint8_t size) const;
+  bool contains_console_access(uint64_t addr, uint8_t size, bool write) const;
   std::vector<uint8_t> dram;
 
 private:
-  bool contains_ram_access(uint64_t addr, uint8_t size) const;
   void poll_console_input();
   bool console_enabled;
   bool console_input_closed = false;

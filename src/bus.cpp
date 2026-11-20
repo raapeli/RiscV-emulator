@@ -9,8 +9,15 @@ Bus::Bus(bool enable_console)
     : dram(DRAM_SIZE, 0), console_enabled(enable_console) {}
 
 bool Bus::contains_ram_access(uint64_t addr, uint8_t size) const {
+  if (size != BYTE && size != HALFWORD && size != WORD && size != DOUBLEWORD)
+    return false;
   const uint64_t offset = addr - DRAM_BASE;
   return offset < dram.size() && size / 8 <= dram.size() - offset;
+}
+
+bool Bus::contains_console_access(uint64_t addr, uint8_t size, bool write) const {
+  return console_enabled && size == BYTE &&
+         (addr == CONSOLE_DATA || (!write && addr == CONSOLE_STATUS));
 }
 
 void Bus::poll_console_input() {
@@ -34,8 +41,7 @@ void Bus::poll_console_input() {
 }
 
 uint64_t Bus::read(uint64_t addr, uint8_t size) {
-  if (console_enabled && size == BYTE &&
-      (addr == CONSOLE_STATUS || addr == CONSOLE_DATA)) {
+  if (contains_console_access(addr, size, false)) {
     poll_console_input();
     if (addr == CONSOLE_STATUS)
       return console_input.has_value();
@@ -62,7 +68,7 @@ uint64_t Bus::read(uint64_t addr, uint8_t size) {
 }
 
 void Bus::write(uint64_t addr, uint8_t size, uint64_t value) {
-  if (console_enabled && size == BYTE && addr == CONSOLE_DATA) {
+  if (contains_console_access(addr, size, true)) {
     std::cout.put(static_cast<char>(value & 0xFF)).flush();
     return;
   }

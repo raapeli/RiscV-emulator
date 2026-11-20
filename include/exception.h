@@ -40,6 +40,7 @@ struct Exception {
   };
 
   ExceptionValue exception = Exception::None;
+  uint64_t access_address = 0;
 
   Trap take_trap(Cpu *cpu);
 
