@@ -7,9 +7,13 @@ add_compile_options(-ggdb3 -Wall -Wextra -Wpedantic)
 add_executable(test_no_jumps test_no_jumps.cpp)
 add_executable(test_jumps test_jumps.cpp)
 add_executable(test_cpu test_riscv.cpp)
+add_executable(test_bus_bounds test_bus_bounds.cpp)
 target_link_libraries(test_no_jumps PRIVATE emulator)
 target_link_libraries(test_jumps PRIVATE emulator)
 target_link_libraries(test_cpu PRIVATE emulator)
+target_link_libraries(test_bus_bounds PRIVATE emulator)
+
+add_test(NAME bus_bounds_test COMMAND test_bus_bounds)
 
 add_test(NAME rv64ui_test
  COMMAND $<TARGET_FILE:test_cpu> "../../testbins/rv64ui/bin/"

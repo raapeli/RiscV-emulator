@@ -22,10 +22,21 @@ int main(int argc, char *argv[]) {
 
   file.seekg(0, std::ios::end);
   const auto size = file.tellg();
+  if (size < 0) {
+    std::cerr << "File reading failed\n";
+    return -1;
+  }
+  if (size > static_cast<std::streamoff>(DRAM_SIZE)) {
+    std::cerr << "Binary exceeds guest RAM\n";
+    return -1;
+  }
   file.seekg(0, std::ios::beg);
 
   std::vector<uint8_t> data(static_cast<std::size_t>(size));
-  file.read(reinterpret_cast<char *>(data.data()), size);
+  if (!file.read(reinterpret_cast<char *>(data.data()), size)) {
+    std::cerr << "File reading failed\n";
+    return -1;
+  }
 
   std::cerr << "Parsed successfully\n";
 

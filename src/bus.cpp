@@ -6,7 +6,12 @@
 #include <unistd.h>
 
 Bus::Bus(bool enable_console)
-    : dram(DRAM_SIZE / 8, 0), console_enabled(enable_console) {}
+    : dram(DRAM_SIZE, 0), console_enabled(enable_console) {}
+
+bool Bus::contains_ram_access(uint64_t addr, uint8_t size) const {
+  const uint64_t offset = addr - DRAM_BASE;
+  return offset < dram.size() && size / 8 <= dram.size() - offset;
+}
 
 void Bus::poll_console_input() {
   if (console_input || console_input_closed)
@@ -40,7 +45,7 @@ uint64_t Bus::read(uint64_t addr, uint8_t size) {
     return byte;
   }
 
-  if ((addr - DRAM_BASE) < DRAM_SIZE) {
+  if (contains_ram_access(addr, size)) {
     switch (size) {
     case BYTE:
       return read8(addr);
@@ -62,7 +67,7 @@ void Bus::write(uint64_t addr, uint8_t size, uint64_t value) {
     return;
   }
 
-  if ((addr - DRAM_BASE) < DRAM_SIZE) {
+  if (contains_ram_access(addr, size)) {
     switch (size) {
     case BYTE:
       write8(addr, value);

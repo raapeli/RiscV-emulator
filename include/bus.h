@@ -18,6 +18,7 @@ public:
   std::vector<uint8_t> dram;
 
 private:
+  bool contains_ram_access(uint64_t addr, uint8_t size) const;
   void poll_console_input();
   bool console_enabled;
   bool console_input_closed = false;
