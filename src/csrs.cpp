@@ -15,9 +15,9 @@ uint64_t Csr::load(uint64_t addr) {
   case Address::SSTATUS:
     return regs[Address::MSTATUS] & Mask::SSTATUS;
   case Address::SIE:
-    return regs[Address::MIE] & Address::MIDELEG;
+    return regs[Address::MIE] & regs[Address::MIDELEG];
   case Address::SIP:
-    return regs[Address::MIP] & Address::MIDELEG;
+    return regs[Address::MIP] & regs[Address::MIDELEG];
   case Address::TSELECT:
     // A write of trigger index zero reads back a different index when empty.
     return 1;
@@ -37,6 +37,9 @@ void Csr::write(uint64_t addr, uint64_t value) {
   case Address::MISA:
     // Instruction alignment stays at four bytes until C is implemented.
     regs[Address::MISA] = value & ~Misa::C_EXT;
+    break;
+  case Address::MIDELEG:
+    regs[Address::MIDELEG] = value & Mask::SUPERVISOR_INTERRUPTS;
     break;
   case Address::MSTATUS:
     regs[Address::MSTATUS] = (value & ~STATUS_XLEN_MASK) | STATUS_XLEN_64;

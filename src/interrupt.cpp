@@ -6,24 +6,24 @@ void Interrupt::take_trap(Cpu *cpu) {
   uint64_t pc = cpu->pc;
   Mode mode = cpu->mode;
 
-  bool medeleg_f = (cpu->cregs->load(csr::Address::MEDELEG) >> cause) == 1;
+  bool delegated = (cpu->cregs->load(csr::Address::MIDELEG) >> cause) & 1;
+  uint64_t trap_cause = (1ULL << 63) | cause;
 
-  if (mode <= Mode::SUPERVISOR && medeleg_f &&
-      cause != Interrupt::MachineTimerInterrupt) {
+  if (mode <= Mode::SUPERVISOR && delegated) {
 
     cpu->mode = Mode::SUPERVISOR;
 
     uint64_t stvec_val = cpu->cregs->load(csr::Address::STVEC);
     uint64_t vt_offset = 0;
 
-    if (stvec_val & 1) {
+    if ((stvec_val & 3) == 1) {
       vt_offset = cause * 4;
     }
     cpu->pc = (stvec_val & ~3ULL) + vt_offset;
 
     cpu->cregs->write(csr::Address::SEPC, pc & ~1ULL);
 
-    cpu->cregs->write(csr::Address::SCAUSE, 1ULL << 63 | cause);
+    cpu->cregs->write(csr::Address::SCAUSE, trap_cause);
 
     cpu->cregs->write(csr::Address::STVAL, 0);
 
@@ -44,7 +44,7 @@ void Interrupt::take_trap(Cpu *cpu) {
     uint64_t mtvec_val = cpu->cregs->load(csr::Address::MTVEC);
     uint64_t vt_offset = 0;
 
-    if (mtvec_val & 1) {
+    if ((mtvec_val & 3) == 1) {
       vt_offset = cause * 4;
     }
 
@@ -52,7 +52,7 @@ void Interrupt::take_trap(Cpu *cpu) {
 
     cpu->cregs->write(csr::Address::MEPC, pc & ~1ULL);
 
-    cpu->cregs->write(csr::Address::SCAUSE, (1ULL < 63) | cause);
+    cpu->cregs->write(csr::Address::MCAUSE, trap_cause);
 
     cpu->cregs->write(csr::Address::MTVAL, 0);
 

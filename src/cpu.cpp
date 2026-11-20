@@ -19,41 +19,34 @@ Cpu::Cpu(Bus *bus) {
 uint64_t Cpu::fetch() { return bus->read(pc, WORD); }
 
 std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
-  if (this->mode == Mode::MACHINE) {
-    if (cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MIE) == 0)
-      return std::nullopt;
-  } else if (this->mode == Mode::SUPERVISOR) {
-    if (cregs->read_bit_sstatus(csr::Mask::SSTATUSBit::SIE) == 0)
-      return std::nullopt;
-  }
+  uint64_t pending = cregs->load(csr::Address::MIE) &
+                     cregs->load(csr::Address::MIP) &
+                     csr::Mask::SUPPORTED_INTERRUPTS;
+  uint64_t delegated = cregs->load(csr::Address::MIDELEG);
+  uint64_t machine_pending = pending & ~delegated;
+  bool machine_enabled = mode < Mode::MACHINE ||
+      cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MIE);
+  bool supervisor_enabled = mode < Mode::SUPERVISOR ||
+      (mode == Mode::SUPERVISOR &&
+       cregs->read_bit_sstatus(csr::Mask::SSTATUSBit::SIE));
 
-  uint64_t mie = cregs->load(csr::Address::MIE);
-  uint64_t mip = cregs->load(csr::Address::MIP);
+  if (machine_enabled && machine_pending)
+    pending = machine_pending;
+  else
+    pending = supervisor_enabled ? pending & delegated : 0;
 
-  uint64_t pending = mie & mip;
-
-  if (pending == 0) {
-    return std::nullopt;
-  }
-  if (pending & csr::Mask::MEIP) {
-    cregs->write_bit(csr::Address::MIP, csr::Mask::MEIP_BIT, 0);
+  if (pending & csr::Mask::MEIP)
     return Interrupt::MachineExternalInterrupt;
-  } else if (pending & csr::Mask::MSIP) {
-    cregs->write_bit(csr::Address::MIP, csr::Mask::MSIP_BIT, 0);
+  if (pending & csr::Mask::MSIP)
     return Interrupt::MachineSoftwareInterrupt;
-  } else if (pending & csr::Mask::MTIP) {
-    cregs->write_bit(csr::Address::MIP, csr::Mask::MTIP_BIT, 0);
+  if (pending & csr::Mask::MTIP)
     return Interrupt::MachineTimerInterrupt;
-  } else if (pending & csr::Mask::SEIP_BIT) {
-    cregs->write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
+  if (pending & csr::Mask::SEIP)
     return Interrupt::SupervisorExternalInterrupt;
-  } else if (pending & csr::Mask::SSIP) {
-    cregs->write_bit(csr::Address::MIP, csr::Mask::SEIP_BIT, 0);
-    return Interrupt::SupervisorExternalInterrupt;
-  } else if (pending & csr::Mask::STIP) {
-    cregs->write_bit(csr::Address::MIP, csr::Mask::STIP_BIT, 0);
+  if (pending & csr::Mask::SSIP)
+    return Interrupt::SupervisorSoftwareInterrupt;
+  if (pending & csr::Mask::STIP)
     return Interrupt::SupervisorTimerInterrupt;
-  }
 
   return std::nullopt;
 }
