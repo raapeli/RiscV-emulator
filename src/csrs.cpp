@@ -1,14 +1,15 @@
 #include "csrs.h"
 #include <algorithm>
 #include <bit>
+#include <cstdint>
 
 namespace csr {
 
 constexpr uint64_t STATUS_XLEN_MASK = (3ULL << 34) | Mask::UXL;
 constexpr uint64_t STATUS_XLEN_64 = (2ULL << 34) | (2ULL << 32);
-constexpr uint64_t MISA_ALWAYS_ENABLED =
-    Misa::RV32I_64I_128I | Misa::M_EXT | Misa::A_EXT | Misa::C_EXT |
-    Misa::F_EXT | Misa::D_EXT;
+constexpr uint64_t MISA_ALWAYS_ENABLED = Misa::RV32I_64I_128I | Misa::M_EXT |
+                                         Misa::A_EXT | Misa::C_EXT |
+                                         Misa::F_EXT | Misa::D_EXT;
 constexpr unsigned PMP_ENTRIES = 16;
 constexpr uint64_t PHYSICAL_LIMIT = 1ULL << 56;
 constexpr uint64_t PMP_ADDRESS_MASK = (PHYSICAL_LIMIT >> 2) - 1;
@@ -19,12 +20,76 @@ constexpr uint8_t PMP_NAPOT = 0x18;
 constexpr uint8_t PMP_LOCK = 0x80;
 
 Csr::Csr(uint64_t device_mask) : device_mask(device_mask) {
-  regs[Address::MISA] = Misa::XLEN_64 | MISA_ALWAYS_ENABLED |
-                        Misa::SUPERVISOR | Misa::USER;
+  regs[Address::MISA] =
+      Misa::XLEN_64 | MISA_ALWAYS_ENABLED | Misa::SUPERVISOR | Misa::USER;
   regs[Address::MSTATUS] = STATUS_XLEN_64;
 };
 
+static bool is_zero_csr(uint64_t addr) {
+  // These configuration registers and hardware performance monitors have no
+  // writable fields on this hart.
+  return addr == Address::MCOUNTINHIBIT || addr == Address::MENVCFG ||
+         addr == Address::SENVCFG ||
+         (addr >= Address::HPMCOUNTER3 && addr <= Address::HPMCOUNTER31) ||
+         (addr >= Address::MHPMCOUNTER3 && addr <= Address::MHPMCOUNTER31) ||
+         (addr >= Address::MHPMEVENT3 && addr <= Address::MHPMEVENT31);
+}
+
+bool Csr::is_implemented(uint64_t addr) {
+  switch (addr) {
+  case Address::FFLAGS:
+  case Address::FRM:
+  case Address::FCSR:
+  case Address::CYCLE:
+  case Address::TIME:
+  case Address::INSTRET:
+  case Address::SSTATUS:
+  case Address::SIE:
+  case Address::STVEC:
+  case Address::SCOUNTEREN:
+  case Address::SSCRATCH:
+  case Address::SEPC:
+  case Address::SCAUSE:
+  case Address::STVAL:
+  case Address::SIP:
+  case Address::SATP:
+  case Address::MVENDORID:
+  case Address::MARCHID:
+  case Address::MIMPID:
+  case Address::MHARTID:
+  case Address::MCONFIGPTR:
+  case Address::MSTATUS:
+  case Address::MISA:
+  case Address::MEDELEG:
+  case Address::MIDELEG:
+  case Address::MIE:
+  case Address::MTVEC:
+  case Address::MCOUNTEREN:
+  case Address::MSCRATCH:
+  case Address::MEPC:
+  case Address::MCAUSE:
+  case Address::MTVAL:
+  case Address::MIP:
+  case Address::MCYCLE:
+  case Address::MINSTRET:
+  case Address::TSELECT:
+  case Address::TDATA1:
+  case Address::TDATA2:
+  case Address::TDATA3:
+  case Address::TINFO:
+    return true;
+  default:
+    return is_zero_csr(addr) ||
+           (addr >= Address::PMPCFG0 && addr <= Address::PMPCFG15 &&
+            !(addr & 1)) ||
+           (addr >= Address::PMPADDR0 && addr <= Address::PMPADDR63);
+  }
+}
+
 uint64_t Csr::load(uint64_t addr) {
+  if (is_zero_csr(addr))
+    return 0;
+
   switch (addr) {
   case Address::FFLAGS:
     return regs[Address::FCSR] & 0x1f;
@@ -62,6 +127,9 @@ void Csr::set_platform_pending(uint64_t pending) {
 }
 
 void Csr::write(uint64_t addr, uint64_t value) {
+  if (is_zero_csr(addr))
+    return;
+
   switch (addr) {
   case Address::FFLAGS:
     write(Address::FCSR, (regs[Address::FCSR] & 0xe0) | (value & 0x1f));
@@ -96,15 +164,15 @@ void Csr::write(uint64_t addr, uint64_t value) {
     regs[Address::MIDELEG] = value & Mask::SUPERVISOR_INTERRUPTS;
     break;
   case Address::MSTATUS: {
-    const bool dirty = (value & Mask::FS) == Mask::FS ||
-                       (value & Mask::XS) == Mask::XS;
+    const bool dirty =
+        (value & Mask::FS) == Mask::FS || (value & Mask::XS) == Mask::XS;
     regs[addr] = (value & ~(STATUS_XLEN_MASK | Mask::SD)) | STATUS_XLEN_64 |
                  (dirty ? static_cast<uint64_t>(Mask::SD) : 0);
     break;
   }
   case Address::SSTATUS:
-    write(Address::MSTATUS, (regs[Address::MSTATUS] & ~Mask::SSTATUS) |
-                                (value & Mask::SSTATUS));
+    write(Address::MSTATUS,
+          (regs[Address::MSTATUS] & ~Mask::SSTATUS) | (value & Mask::SSTATUS));
     break;
   case Address::SIE: {
     uint64_t val = (regs[Address::MIE] & ~regs[Address::MIDELEG]) |

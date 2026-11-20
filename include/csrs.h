@@ -81,6 +81,7 @@ struct Address {
     // Machine configuration
     MENVCFG = 0x30A,
     MENVCFGH = 0x31A, // RV32 only
+    MCOUNTINHIBIT = 0x320,
 
     PMPCFG0 = 0x3A0,
     PMPCFG2 = 0x3A2,
@@ -202,6 +203,7 @@ public:
 
   explicit Csr(uint64_t device_mask = 0);
 
+  static bool is_implemented(uint64_t addr);
   uint64_t load(uint64_t addr);
   uint64_t value_for_update(uint64_t addr, uint64_t observed) const;
   void write(uint64_t addr, uint64_t value);

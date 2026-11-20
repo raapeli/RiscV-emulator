@@ -542,9 +542,7 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       return std::unexpected(Exception::IllegalInstruction);
     }
   } else { // CSR Instructions
-    // Firmware probes these CSRs before choosing a timer and interrupt handler.
-    if (csrAddr == csr::Address::STIMECMP || csrAddr == csr::Address::STIMECMPH ||
-        csrAddr == csr::Address::MTOPI || csrAddr == csr::Address::STOPI)
+    if (!csr::Csr::is_implemented(csrAddr))
       return std::unexpected(Exception::IllegalInstruction);
 
     if (csrAddr >= csr::Address::FFLAGS && csrAddr <= csr::Address::FCSR &&
@@ -552,9 +550,6 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       return std::unexpected(Exception::IllegalInstruction);
 
     uint64_t rs1 = RS1(inst);
-    if (csrAddr >= csr::Address::PMPCFG0 && csrAddr <= csr::Address::PMPCFG15 &&
-        (csrAddr & 1))
-      return std::unexpected(Exception::IllegalInstruction);
     // CSR address bits encode the minimum privilege and read-only access.
     uint64_t csr_mode = (csrAddr >> 8) & 3;
     bool read_only = (csrAddr >> 10) == 3;

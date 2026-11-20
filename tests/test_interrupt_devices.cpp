@@ -27,6 +27,59 @@ void require(bool condition, const char *message) {
   }
 }
 
+void test_csr_access() {
+  Bus bus;
+  Cpu cpu(&bus);
+  auto &regs = *cpu.cregs;
+  auto execute_csr = [&](uint64_t addr, unsigned funct3, unsigned source) {
+    // Encode a CSR instruction with a0 as the destination register.
+    const uint32_t inst = (addr << 20) | (source << 15) | (funct3 << 12) |
+                          (10U << 7) | 0x73;
+    bus.write(DRAM_BASE, WORD, inst);
+    cpu.pc = DRAM_BASE;
+    return cpu.execute();
+  };
+
+  regs.write(Address::MSCRATCH, 42);
+  cpu.xregs->write(11, 99);
+  require(execute_csr(Address::MSCRATCH, 1, 11).has_value() &&
+              cpu.xregs->read(10) == 42 && regs.load(Address::MSCRATCH) == 99,
+          "A supported CSR must return its old value and accept a write");
+
+  regs.write(Address::CYCLE, 123);
+  for (unsigned funct3 : {2U, 3U, 6U, 7U}) {
+    require(execute_csr(Address::CYCLE, funct3, 0).has_value() &&
+                cpu.xregs->read(10) == 123,
+            "A zero-mask instruction must be able to read a read-only CSR");
+  }
+  auto write_cycle = execute_csr(Address::CYCLE, 1, 0);
+  require(!write_cycle && write_cycle.error() == Exception::IllegalInstruction &&
+              cpu.xregs->read(10) == 123 && regs.load(Address::CYCLE) == 123,
+          "A CSRRW with x0 must still trap when the CSR is read-only");
+
+  for (uint64_t addr : {uint64_t{0x30c}, uint64_t{Address::MSTATUSH},
+                        uint64_t{Address::CYCLEH}, uint64_t{Address::PMPCFG0 + 1}}) {
+    auto read = execute_csr(addr, 2, 0);
+    auto write = execute_csr(addr, 1, 11);
+    require(!read && read.error() == Exception::IllegalInstruction &&
+                !write && write.error() == Exception::IllegalInstruction &&
+                cpu.xregs->read(10) == 123,
+            "Unsupported CSR reads and writes must trap before changing a0");
+  }
+
+  for (auto addr : {Address::MCOUNTINHIBIT, Address::MENVCFG, Address::SENVCFG,
+                    Address::MHPMCOUNTER3, Address::MHPMCOUNTER31,
+                    Address::MHPMEVENT3, Address::MHPMEVENT31,
+                    Address::PMPADDR63}) {
+    require(execute_csr(addr, 1, 11).has_value() &&
+                execute_csr(addr, 2, 0).has_value() && cpu.xregs->read(10) == 0,
+            "Compatibility CSRs must read as zero and ignore writes");
+  }
+  require(execute_csr(Address::HPMCOUNTER3, 2, 0).has_value() &&
+              cpu.xregs->read(10) == 0,
+          "The user-visible hardware performance counter must read as zero");
+}
+
 void test_clint() {
   Bus bus(false, DRAM_BASE, DRAM_SIZE, {CLINT, std::nullopt, std::nullopt});
   require(bus.clint() && !bus.plic() && !bus.contains_mmio_access(PLIC, WORD, false),
@@ -171,6 +224,7 @@ void test_plic() {
 } // namespace
 
 int main() {
+  test_csr_access();
   test_clint();
   test_plic();
 }
