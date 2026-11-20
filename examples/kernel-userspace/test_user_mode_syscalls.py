@@ -6,7 +6,9 @@ import time
 
 
 def main():
-    expected = b"kernel: entering U-mode\nkernel: received U-mode ecall\n"
+    expected = (b"kernel: entering U-mode\n"
+                b"userspace: hello\n"
+                b"kernel: user exited with status 7\n")
     deadline = time.monotonic() + 5
     with subprocess.Popen(sys.argv[1:], stdin=subprocess.DEVNULL,
                           stdout=subprocess.PIPE) as guest:

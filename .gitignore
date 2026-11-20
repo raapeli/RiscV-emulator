@@ -13,4 +13,4 @@ build/
 !examples/console-shell/shell.c
 !examples/kernel-userspace/start.S
 !examples/kernel-userspace/kernel.c
-!examples/kernel-userspace/test_user_mode_ecall.py
+!examples/kernel-userspace/test_user_mode_syscalls.py

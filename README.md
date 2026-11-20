@@ -93,6 +93,10 @@ cmake --build build
 ./build/RiscV build/examples/kernel-userspace/kernel-userspace.bin
 ```
 
-The kernel switches to U-mode, then prints `kernel: received U-mode ecall`
-after receiving an ECALL from the embedded user program. Press Ctrl+C after
-that message. With Python 3 installed, CTest checks this boot path automatically.
+The embedded U-mode program prints `userspace: hello` through `write` and
+then calls `exit`. The kernel prints `kernel: user exited with status 7` and
+idles. Press Ctrl+C to stop the emulator. With Python 3 installed, CTest checks
+the syscall round trip automatically.
+
+The example uses a trusted user program in flat memory. The kernel validates
+`write` buffers, and hardware memory isolation is a separate milestone.
