@@ -96,8 +96,12 @@ struct Address {
     // ...
     MHPMEVENT31 = 0x33F,
 
-    // Debug CSRs (names/usage depend on debug spec; addresses 0x7A0–0x7BF)
-    // Add as needed.
+    // Debug trigger CSRs
+    TSELECT = 0x7A0,
+    TDATA1 = 0x7A1,
+    TDATA2 = 0x7A2,
+    TDATA3 = 0x7A3,
+    TINFO = 0x7A4
   };
 };
 

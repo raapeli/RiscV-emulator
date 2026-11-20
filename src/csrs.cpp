@@ -14,6 +14,15 @@ uint64_t Csr::load(uint64_t addr) {
     return regs[Address::MIE] & Address::MIDELEG;
   case Address::SIP:
     return regs[Address::MIP] & Address::MIDELEG;
+  case Address::TSELECT:
+    // A write of trigger index zero reads back a different index when empty.
+    return 1;
+  case Address::TDATA1:
+  case Address::TDATA2:
+  case Address::TDATA3:
+    return 0;
+  case Address::TINFO:
+    return 1;
   default:
     return regs[addr];
   }
@@ -39,6 +48,12 @@ void Csr::write(uint64_t addr, uint64_t value) {
     regs[Address::MIP] = val;
     break;
   }
+  case Address::TSELECT:
+  case Address::TDATA1:
+  case Address::TDATA2:
+  case Address::TDATA3:
+  case Address::TINFO:
+    break;
   default:
     regs[addr] = value;
   }
