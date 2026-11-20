@@ -125,13 +125,14 @@ struct Mask {
   enum class MSTATUSBit : uint64_t {
     MIE = 3,
     MPIE = 7,
-    MPP = 12,
     MPRV = 17,
     SUM = 18,
     MXR = 19,
     TVM = 20,
     TSR = 22,
   };
+  static constexpr uint64_t MPP_HIGH_BIT = 12;
+  static constexpr uint64_t MPP_LOW_BIT = 11;
   enum Bit : uint64_t {
     SSIP_BIT = 1ULL,
     MSIP_BIT = 3ULL,

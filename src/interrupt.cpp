@@ -61,6 +61,7 @@ void Interrupt::take_trap(Cpu *cpu) {
         cpu->cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MIE));
     cpu->cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MIE, 0);
 
-    cpu->cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPP, mode);
+    cpu->cregs->write_bits(csr::Address::MSTATUS, csr::Mask::MPP_HIGH_BIT,
+                           csr::Mask::MPP_LOW_BIT, mode);
   }
 }

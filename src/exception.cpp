@@ -46,7 +46,8 @@ Trap Exception::take_trap(Cpu *cpu) {
         csr::Mask::MSTATUSBit::MPIE,
         cpu->cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MIE));
     cpu->cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MIE, 0);
-    cpu->cregs->write_bits(csr::Address::MSTATUS, 12, 11, mode);
+    cpu->cregs->write_bits(csr::Address::MSTATUS, csr::Mask::MPP_HIGH_BIT,
+                           csr::Mask::MPP_LOW_BIT, mode);
   }
 
   switch (exception) {

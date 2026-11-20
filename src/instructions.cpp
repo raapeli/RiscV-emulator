@@ -464,29 +464,29 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       case Mode::USER:
         return std::unexpected(Exception::EnvironmentCallUmode);
       }
-    } else if (FUNCT7(inst) == 0x18) { // mret
+    } else if (csrAddr == 0x302 && RS1(inst) == 0 && RD(inst) == 0) { // mret
       DB(ss, inst, "mret");
       if (this->mode != Mode::MACHINE)
         return std::unexpected(Exception::IllegalInstruction);
 
-      this->pc = cregs->load(csr::Address::MEPC) - 4; // Restore PC
+      uint64_t mpp = cregs->read_bits(csr::Address::MSTATUS,
+                                     csr::Mask::MPP_HIGH_BIT,
+                                     csr::Mask::MPP_LOW_BIT);
+      if (mpp != Mode::USER && mpp != Mode::SUPERVISOR && mpp != Mode::MACHINE)
+        return std::unexpected(Exception::IllegalInstruction);
 
-      // Restore Privilege Mode
-      uint64_t mpp = cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MPP);
-      cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPRV, 0);
-      if (mpp == 0b00)
-        this->mode = Mode::USER;
-      else if (mpp == 0b01)
-        this->mode = Mode::SUPERVISOR;
-      else if (mpp == 0b11)
-        this->mode = Mode::MACHINE;
+      this->pc = cregs->load(csr::Address::MEPC) - 4; // Restore PC
+      this->mode = static_cast<Mode>(mpp);
+      if (this->mode != Mode::MACHINE)
+        cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPRV, 0);
 
       // Restore Interrupt Enable
       cregs->write_bit_mstatus(
           csr::Mask::MSTATUSBit::MIE,
           cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MPIE));
       cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPIE, 1);
-      cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPP, Mode::USER);
+      cregs->write_bits(csr::Address::MSTATUS, csr::Mask::MPP_HIGH_BIT,
+                        csr::Mask::MPP_LOW_BIT, Mode::USER);
     } else {
       return std::unexpected(Exception::IllegalInstruction);
     }

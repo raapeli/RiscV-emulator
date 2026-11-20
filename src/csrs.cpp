@@ -60,35 +60,31 @@ void Csr::write(uint64_t addr, uint64_t value) {
 }
 
 uint64_t Csr::read_bit(uint64_t addr, uint64_t offset) {
-  if (offset >= MXLEN) {
-    // TODO: How to handle?
-    return 0;
-  }
-
-  return (load(addr) & (1 << offset)) != 0;
+  return read_bits(addr, offset, offset);
 }
 
 uint64_t Csr::read_bits(uint64_t addr, uint64_t upper_offset,
                         uint64_t lower_offset) {
-  uint64_t mask = (1 << (upper_offset - lower_offset + 1)) - 1;
+  if (upper_offset >= MXLEN || lower_offset > upper_offset)
+    return 0;
+
+  uint64_t width = upper_offset - lower_offset + 1;
+  uint64_t mask = UINT64_MAX >> (MXLEN - width);
   return (load(addr) >> lower_offset) & mask;
 }
 
 void Csr::write_bit(uint64_t addr, uint64_t offset, uint64_t value) {
-  (value == 0) ? write(addr, load(addr) | (1 << offset))
-               : write(addr, load(addr) & ~(1 << offset));
+  write_bits(addr, offset, offset, value != 0);
 }
 
 void Csr::write_bits(uint64_t addr, uint64_t upper_offset,
                      uint64_t lower_offset, uint64_t value) {
-  uint64_t mask = (1 << (upper_offset - lower_offset + 1)) - 1;
-  uint64_t old_val = load(addr);
-  mask <<= lower_offset;
-  old_val <<= lower_offset;
-  value &= ~mask;
-  value |= old_val;
+  if (upper_offset >= MXLEN || lower_offset > upper_offset)
+    return;
 
-  write(addr, value);
+  uint64_t width = upper_offset - lower_offset + 1;
+  uint64_t mask = (UINT64_MAX >> (MXLEN - width)) << lower_offset;
+  write(addr, (load(addr) & ~mask) | ((value << lower_offset) & mask));
 }
 
 uint64_t Csr::read_bit_mstatus(Mask::MSTATUSBit bit) {
