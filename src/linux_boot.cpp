@@ -62,7 +62,7 @@ private:
 
 } // namespace
 
-std::vector<uint8_t> make_dtb(uint64_t initrd_size) {
+std::vector<uint8_t> make_dtb(uint64_t initrd_size, bool has_disk) {
   constexpr uint32_t CPU_INTC_PHANDLE = 1;
   constexpr uint32_t PLIC_PHANDLE = 2;
   constexpr char ISA_EXTENSIONS[] = "i\0m\0a\0f\0d\0c\0zicsr\0zifencei";
@@ -152,6 +152,16 @@ std::vector<uint8_t> make_dtb(uint64_t initrd_size) {
   dt.cells("interrupt-parent", {PLIC_PHANDLE});
   dt.cells("interrupts", {UART.plic_source});
   dt.end_node();
+
+  if (has_disk) {
+    dt.begin_node(std::format("virtio@{:x}", DISK_BASE).c_str());
+    dt.string("compatible", "virtio,mmio");
+    dt.region(DISK_BASE, VirtioBlk::MMIO_SIZE);
+    dt.cells("interrupt-parent", {PLIC_PHANDLE});
+    dt.cells("interrupts", {DISK_IRQ});
+    dt.property("dma-coherent");
+    dt.end_node();
+  }
 
   dt.end_node();
   dt.end_node();

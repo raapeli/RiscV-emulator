@@ -119,6 +119,32 @@ Other machine configurations can attach these devices independently through
 and receive and transmit interrupts. Transmission is immediate and the receive
 FIFO timeout is measured in emulator ticks.
 
+### Persistent Linux disk
+
+Pass `--disk` to attach a writable raw image. The generated device tree maps
+the virtio block device at `0x10001000` on PLIC source 1. Linux discovers it as
+`/dev/vda` with the driver settings in the Linux boot recipe.
+
+For a new ext4 image, run from the repository root:
+
+```sh
+truncate -s 64M disk.img
+mkfs.ext4 disk.img
+./build/RiscV --linux --firmware build/linux-boot/fw_jump.bin \
+  --kernel build/linux-boot/Image --initrd build/linux-boot/initramfs.cpio \
+  --disk disk.img
+```
+
+In the BusyBox shell, mount the disk and unmount it before stopping the emulator:
+
+```sh
+/bin/busybox mount -t devtmpfs devtmpfs /dev
+/bin/busybox mkdir /mnt
+/bin/busybox mount -t ext4 /dev/vda /mnt
+echo hello > /mnt/hello.txt
+/bin/busybox umount /mnt
+```
+
 ### Polled console
 
 In flat-binary mode, the emulator connects guest byte loads and stores to

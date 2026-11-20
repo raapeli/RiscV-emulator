@@ -85,12 +85,13 @@ def dtb_properties(blob):
     raise RuntimeError("Missing DTB end token")
 
 
-def check_generated_dtb(blob, initrd_size):
+def check_generated_dtb(blob, initrd_size, has_disk=False):
     props = dtb_properties(blob)
     cpu = "/cpus/cpu@0"
     cpu_intc = cpu + "/interrupt-controller"
     plic = "/soc/interrupt-controller@c000000"
     uart = "/soc/serial@10000000"
+    disk = "/soc/virtio@10001000"
     expected = {
         ("/chosen", "stdout-path"): uart.encode() + b":115200n8\0",
         ("/chosen", "bootargs"): b"console=ttyS0,115200 earlycon\0",
@@ -119,6 +120,16 @@ def check_generated_dtb(blob, initrd_size):
         (uart, "interrupt-parent"): props[plic, "phandle"],
         (uart, "interrupts"): struct.pack(">I", 10),
     }
+    if has_disk:
+        expected.update({
+            (disk, "compatible"): b"virtio,mmio\0",
+            (disk, "reg"): struct.pack(">QQ", 0x10001000, 0x1000),
+            (disk, "interrupt-parent"): props[plic, "phandle"],
+            (disk, "interrupts"): struct.pack(">I", 1),
+            (disk, "dma-coherent"): b"",
+        })
+    elif any(node == disk for node, _ in props):
+        raise RuntimeError("The device tree describes a disk without --disk")
     for prop, value in expected.items():
         if props.get(prop) != value:
             raise RuntimeError(f"Expected {prop} to be {value!r}, got {props.get(prop)!r}")
@@ -143,6 +154,13 @@ def main():
         dtb.write_bytes(custom)
         if read_guest_dtb(command + ["--dtb", dtb]) != custom:
             raise RuntimeError("Custom DTB was modified")
+
+        disk = path / "disk.img"
+        disk.write_bytes(bytes(512))
+        with_disk = read_guest_dtb(command + ["--disk", disk])
+        check_generated_dtb(with_disk, len(initrd_contents), has_disk=True)
+        disk.write_bytes(b"x")
+        expect_failure(command + ["--disk", disk], b"size divisible by 512")
 
         expect_failure(command[:-2], b"Missing Linux boot argument: --firmware")
         expect_failure(command + ["--kernel", kernel], b"Invalid Linux boot argument")

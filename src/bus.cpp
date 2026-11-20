@@ -22,6 +22,11 @@ Clint *Bus::clint() { return clint_device ? &*clint_device : nullptr; }
 
 Plic *Bus::plic() { return plic_device ? &*plic_device : nullptr; }
 
+void Bus::attach_disk(uint64_t base, unsigned plic_source, const char *image) {
+  block_device.emplace(base, image);
+  block_plic_source = plic_source;
+}
+
 bool Bus::contains_ram_access(uint64_t addr, uint8_t size) const {
   if (size != BYTE && size != HALFWORD && size != WORD && size != DOUBLEWORD)
     return false;
@@ -39,7 +44,8 @@ bool Bus::contains_mmio_access(uint64_t addr, uint8_t size, bool write) const {
   return contains_console_access(addr, size, write) ||
          (clint_device && clint_device->contains_access(addr, size)) ||
          (plic_device && plic_device->contains_access(addr, size)) ||
-         (uart_device && uart_device->contains_access(addr, size));
+         (uart_device && uart_device->contains_access(addr, size)) ||
+         (block_device && block_device->contains_access(addr, size));
 }
 
 std::optional<uint8_t> Bus::read_console_input() {
@@ -88,6 +94,8 @@ uint64_t Bus::read(uint64_t addr, uint8_t size) {
     return clint_device->read(addr, size);
   if (plic_device && plic_device->contains_access(addr, size))
     return plic_device->read(addr, size);
+  if (block_device && block_device->contains_access(addr, size))
+    return block_device->read(addr, size);
   if (uart_device && uart_device->contains_access(addr, size)) {
     const uint64_t value = uart_device->read(addr, size);
     update_uart_interrupt();
@@ -127,6 +135,13 @@ void Bus::write(uint64_t addr, uint8_t size, uint64_t value) {
   }
   if (plic_device && plic_device->contains_access(addr, size)) {
     plic_device->write(addr, size, value);
+    return;
+  }
+  if (block_device && block_device->contains_access(addr, size)) {
+    block_device->write(addr, size, value, ram_base, dram);
+    if (plic_device)
+      plic_device->set_external_level(block_plic_source,
+                                      block_device->interrupt_pending());
     return;
   }
   if (uart_device && uart_device->contains_access(addr, size)) {

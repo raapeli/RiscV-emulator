@@ -76,15 +76,23 @@ int run_linux(int argc, char *argv[]) {
       BootImage{"--dtb", DTB_ADDRESS, RAM_BASE + RAM_SIZE},
   };
   auto &[firmware, kernel, initrd, dtb] = images;
+  const char *disk_path = nullptr;
   for (int i = 2; i < argc; i += 2) {
     const std::string_view option = argv[i];
     auto image = std::ranges::find(images, option, &BootImage::option);
-    if (image == images.end() || image->path || i + 1 == argc ||
+    if (i + 1 == argc ||
         std::string_view(argv[i + 1]).starts_with("--")) {
       std::cerr << "Invalid Linux boot argument: " << option << '\n';
       return 1;
     }
-    image->path = argv[i + 1];
+    if (option == "--disk" && !disk_path) {
+      disk_path = argv[i + 1];
+    } else if (image != images.end() && !image->path) {
+      image->path = argv[i + 1];
+    } else {
+      std::cerr << "Invalid Linux boot argument: " << option << '\n';
+      return 1;
+    }
   }
 
   for (auto &image : images) {
@@ -103,7 +111,7 @@ int run_linux(int argc, char *argv[]) {
 
   if (!dtb.path) {
     try {
-      dtb.bytes = make_dtb(initrd.bytes.size());
+      dtb.bytes = make_dtb(initrd.bytes.size(), disk_path != nullptr);
     } catch (const std::runtime_error &error) {
       std::cerr << "Could not generate Linux device tree: " << error.what()
                 << '\n';
@@ -112,6 +120,14 @@ int run_linux(int argc, char *argv[]) {
   }
 
   Bus bus(true, RAM_BASE, RAM_SIZE, DEVICES);
+  if (disk_path) {
+    try {
+      bus.attach_disk(DISK_BASE, DISK_IRQ, disk_path);
+    } catch (const std::runtime_error &error) {
+      std::cerr << "Could not open Linux disk image: " << error.what() << '\n';
+      return 1;
+    }
+  }
   for (const auto &image : images)
     std::ranges::copy(image.bytes,
                       bus.dram.begin() + (image.address - bus.ram_base));
@@ -133,6 +149,6 @@ int main(int argc, char *argv[]) {
 
   std::cerr << "Usage: RiscV BINARY\n"
                "       RiscV --linux --firmware FILE --kernel FILE "
-               "--initrd FILE [--dtb FILE]\n";
+               "--initrd FILE [--dtb FILE] [--disk FILE]\n";
   return 1;
 }

@@ -3,6 +3,7 @@
 #include "devices/clint.h"
 #include "devices/plic.h"
 #include "devices/uart.h"
+#include "devices/virtio_blk.h"
 
 #include <cstdint>
 #include <optional>
@@ -34,6 +35,7 @@ public:
   Clint *clint();
   Plic *plic();
   void tick_uart();
+  void attach_disk(uint64_t base, unsigned plic_source, const char *image);
   const uint64_t ram_base;
   std::vector<uint8_t> dram;
 
@@ -42,6 +44,8 @@ private:
   std::optional<Clint> clint_device;
   std::optional<Plic> plic_device;
   std::optional<Uart> uart_device;
+  std::optional<VirtioBlk> block_device;
+  unsigned block_plic_source = 0;
   unsigned uart_plic_source = 0;
   unsigned uart_poll_ticks = 0;
   void update_uart_interrupt();
