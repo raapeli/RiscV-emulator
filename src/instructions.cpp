@@ -322,8 +322,11 @@ Cpu::ExecResult Cpu::exec_LOAD(uint64_t inst, std::stringstream *ss) {
   uint64_t funct3 = FUNCT3(inst);
   if (funct3 == 7)
     return std::unexpected(Exception::IllegalInstruction);
-  if (!permits_memory_access(addr, BYTE << (funct3 & 3), csr::Csr::PMP_READ))
-    return std::unexpected(Exception::LoadAccessFault);
+  auto physical =
+      resolve_memory_access(addr, BYTE << (funct3 & 3), csr::Csr::PMP_READ);
+  if (!physical)
+    return std::unexpected(physical.error());
+  addr = *physical;
 
   switch (funct3) {
   case 0x0:
@@ -369,8 +372,11 @@ Cpu::ExecResult Cpu::exec_STORE(uint64_t inst, std::stringstream *ss) {
   uint64_t funct3 = FUNCT3(inst);
   if (funct3 > 3)
     return std::unexpected(Exception::IllegalInstruction);
-  if (!permits_memory_access(dest, BYTE << funct3, csr::Csr::PMP_WRITE))
-    return std::unexpected(Exception::StoreAmoAccessFault);
+  auto physical =
+      resolve_memory_access(dest, BYTE << funct3, csr::Csr::PMP_WRITE);
+  if (!physical)
+    return std::unexpected(physical.error());
+  dest = *physical;
 
   switch (funct3) {
   case 0x0:
@@ -477,7 +483,7 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       if (mode == Mode::USER || trap_vm)
         return std::unexpected(Exception::IllegalInstruction);
 
-      // Bare mode has no address translations to invalidate.
+      // Address translation is uncached.
       return {};
     } else if (csrAddr == 0x001 && zero_registers) { // ebreak
       DB(ss, inst, "ebreak");
@@ -656,9 +662,16 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
     return std::unexpected(Exception::IllegalInstruction);
   }
   uint8_t size = funct3 == 0x2 ? WORD : DOUBLEWORD;
-  if (!permits_memory_access(address, size, permissions))
-    return std::unexpected(funct5 == 0x2 ? Exception::LoadAccessFault
-                                         : Exception::StoreAmoAccessFault);
+  if (address % (size / 8) != 0) {
+    exception.access_address = address;
+    return std::unexpected(funct5 == 0x2
+                               ? Exception::LoadAddressMisaligned
+                               : Exception::StoreAmoAddressMisaligned);
+  }
+  auto physical = resolve_memory_access(address, size, permissions);
+  if (!physical)
+    return std::unexpected(physical.error());
+  address = *physical;
 
   switch (funct3) {
 
@@ -666,10 +679,6 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
     switch (funct5) {
     case 0x2: { // lr.w
       DB(ss, inst, "lr.w");
-
-      if (address % 4 != 0) {
-        return std::unexpected(Exception::LoadAddressMisaligned);
-      }
 
       uint64_t result =
           SIGNEXTEND_CAST(this->bus->read(address, WORD), int32_t);
@@ -680,10 +689,6 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
     }
     case 0x3: { // sc.w
       DB(ss, inst, "sc.w");
-
-      if (address % 4 != 0) {
-        return std::unexpected(Exception::LoadAddressMisaligned);
-      }
 
       if (this->reservations.contains(address)) {
         this->bus->write(address, WORD, reg2);
@@ -772,10 +777,6 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
     case 0x2: { // lr.d
       DB(ss, inst, "lr.d");
 
-      if (address % 4 != 0) {
-        return std::unexpected(Exception::LoadAddressMisaligned);
-      }
-
       uint64_t load = this->bus->read(address, DOUBLEWORD);
       this->xregs->write(rd, load);
       this->reservations.insert(address);
@@ -783,10 +784,6 @@ Cpu::ExecResult Cpu::exec_ATOMIC(uint64_t inst, std::stringstream *ss) {
     }
     case 0x3: { // sc.d
       DB(ss, inst, "sc.d");
-
-      if (address % 4 != 0) {
-        return std::unexpected(Exception::LoadAddressMisaligned);
-      }
 
       if (this->reservations.contains(address)) {
         this->bus->write(address, DOUBLEWORD, reg2);

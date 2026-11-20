@@ -181,6 +181,13 @@ struct Misa {
   };
 };
 
+struct Satp {
+  static constexpr unsigned MODE_SHIFT = 60;
+  static constexpr uint64_t BARE = 0;
+  static constexpr uint64_t SV39 = 8;
+  static constexpr uint64_t PPN_MASK = (1ULL << 44) - 1;
+};
+
 class Csr {
 public:
   enum PmpPermission : uint8_t {

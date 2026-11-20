@@ -16,27 +16,6 @@ Cpu::Cpu(Bus *bus) : pc(bus->ram_base) {
   this->cregs = new csr::Csr();
 }
 
-bool Cpu::permits_memory_access(uint64_t addr, uint8_t size,
-                                uint8_t permissions) {
-  using csr::Csr;
-  bool machine = mode == Mode::MACHINE;
-  if (machine && permissions != Csr::PMP_EXECUTE &&
-      cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MPRV)) {
-    machine = cregs->read_bits(csr::Address::MSTATUS, csr::Mask::MPP_HIGH_BIT,
-                               csr::Mask::MPP_LOW_BIT) == Mode::MACHINE;
-  }
-  bool mapped = bus->contains_ram_access(addr, size) ||
-                (permissions == Csr::PMP_READ &&
-                 bus->contains_console_access(addr, size, false)) ||
-                (permissions == Csr::PMP_WRITE &&
-                 bus->contains_console_access(addr, size, true));
-  if (!mapped || !cregs->permits_access(addr, size / 8, permissions, machine)) {
-    exception.access_address = addr;
-    return false;
-  }
-  return true;
-}
-
 std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
   uint64_t pending = cregs->load(csr::Address::MIE) &
                      cregs->load(csr::Address::MIP) &
@@ -115,11 +94,12 @@ void Cpu::oneTick(std::stringstream *debug_str) {
 }
 Cpu::ExecResult Cpu::execute(std::stringstream *ss) {
   exception.access_address = 0;
-  if (!permits_memory_access(pc, WORD, csr::Csr::PMP_EXECUTE)) {
+  auto physical = resolve_memory_access(pc, WORD, csr::Csr::PMP_EXECUTE);
+  if (!physical) {
     prev_inst = 0;
-    return std::unexpected(Exception::InstructionAccessFault);
+    return std::unexpected(physical.error());
   }
-  uint64_t inst = bus->read(pc, WORD);
+  uint64_t inst = bus->read(*physical, WORD);
   auto result = this->executeGeneral(inst, ss);
   prev_inst = inst;
   if (!result.has_value()) {

@@ -109,7 +109,11 @@ public:
 private:
   std::unordered_set<uint64_t> reservations;
 
-  bool permits_memory_access(uint64_t addr, uint8_t size, uint8_t permissions);
+  using AddressResult = std::expected<uint64_t, Exception::ExceptionValue>;
+  AddressResult resolve_memory_access(uint64_t addr, uint8_t size,
+                                      uint8_t permissions);
+  bool permits_physical_access(uint64_t addr, uint8_t size,
+                               uint8_t permissions, Mode effective_mode) const;
   ExecResult executeGeneral(uint64_t inst, std::stringstream *ss = nullptr);
 
   ExecResult exec_OP_IMM_32(uint64_t inst, std::stringstream *ss);

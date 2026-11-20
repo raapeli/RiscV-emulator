@@ -10,7 +10,7 @@ A Risc-V emulator built in modern C++23.
 - [X] Exceptions 
 - [X] Privileged ISA
 - [X] CSRs
-- [ ] Virtual memory
+- [X] Sv39 virtual memory
 - [ ] Peripheral devices
 
 ## Build

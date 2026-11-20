@@ -33,12 +33,16 @@ Trap Exception::take_trap(Cpu *cpu) {
     trap = Trap::Requested;
     break;
   case InstructionPageFault:
-    ex_pc = tval = pc;
-    trap = Trap::Invisible;
-    break;
   case LoadPageFault:
   case StoreAmoPageFault:
+    ex_pc = pc;
+    tval = access_address;
     trap = Trap::Invisible;
+    break;
+  case LoadAddressMisaligned:
+  case StoreAmoAddressMisaligned:
+    ex_pc = pc;
+    tval = access_address;
     break;
   default:
     break;
