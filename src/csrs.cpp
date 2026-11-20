@@ -30,6 +30,10 @@ uint64_t Csr::load(uint64_t addr) {
 
 void Csr::write(uint64_t addr, uint64_t value) {
   switch (addr) {
+  case Address::MISA:
+    // Instruction alignment stays at four bytes until C is implemented.
+    regs[Address::MISA] = value & ~Misa::C_EXT;
+    break;
   case Address::SSTATUS: {
     uint64_t val =
         (regs[Address::MSTATUS] & ~Mask::SSTATUS) | (value & Mask::SSTATUS);

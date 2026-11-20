@@ -3,7 +3,8 @@
 #include "csrs.h"
 
 uint64_t Exception::epc(uint64_t pc) {
-  if (exception == 3 || (exception <= 12 && exception >= 8))
+  if (exception == InstructionAddressMisaligned || exception == Breakpoint ||
+      (exception <= 12 && exception >= 8))
     return pc;
   return pc + 4;
 }
@@ -11,6 +12,8 @@ uint64_t Exception::epc(uint64_t pc) {
 Trap Exception::take_trap(Cpu *cpu) {
 
   uint64_t ex_pc = epc(cpu->pc);
+  // The implementation may report zero for an instruction alignment trap.
+  uint64_t tval = exception == InstructionAddressMisaligned ? 0 : ex_pc;
   Mode mode = cpu->mode;
 
   bool medeleg_f = (cpu->cregs->load(csr::Address::MEDELEG) >> exception) & 1;
@@ -24,7 +27,7 @@ Trap Exception::take_trap(Cpu *cpu) {
     cpu->cregs->write(csr::Address::SEPC, ex_pc & ~1);
 
     cpu->cregs->write(csr::Address::SCAUSE, exception);
-    cpu->cregs->write(csr::Address::STVAL, ex_pc);
+    cpu->cregs->write(csr::Address::STVAL, tval);
 
     cpu->cregs->write_bit_sstatus(
         csr::Mask::SSTATUSBit::SPIE,
@@ -40,7 +43,7 @@ Trap Exception::take_trap(Cpu *cpu) {
 
     cpu->cregs->write(csr::Address::MCAUSE, exception);
 
-    cpu->cregs->write(csr::Address::MTVAL, ex_pc);
+    cpu->cregs->write(csr::Address::MTVAL, tval);
 
     cpu->cregs->write_bit_mstatus(
         csr::Mask::MSTATUSBit::MPIE,
@@ -52,6 +55,8 @@ Trap Exception::take_trap(Cpu *cpu) {
 
   switch (exception) {
   case Exception::InstructionAddressMisaligned:
+    return Trap::Contained;
+
   case Exception::InstructionAccessFault:
     return Trap::Fatal;
 
