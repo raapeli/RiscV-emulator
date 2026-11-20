@@ -2,8 +2,12 @@
 
 namespace csr {
 
+constexpr uint64_t STATUS_XLEN_MASK = (3ULL << 34) | Mask::UXL;
+constexpr uint64_t STATUS_XLEN_64 = (2ULL << 34) | (2ULL << 32);
+
 Csr::Csr() {
   regs[Address::MISA] = Misa::XLEN_64 | Misa::SUPERVISOR | Misa::USER;
+  regs[Address::MSTATUS] = STATUS_XLEN_64;
 };
 
 uint64_t Csr::load(uint64_t addr) {
@@ -34,12 +38,13 @@ void Csr::write(uint64_t addr, uint64_t value) {
     // Instruction alignment stays at four bytes until C is implemented.
     regs[Address::MISA] = value & ~Misa::C_EXT;
     break;
-  case Address::SSTATUS: {
-    uint64_t val =
-        (regs[Address::MSTATUS] & ~Mask::SSTATUS) | (value & Mask::SSTATUS);
-    regs[Address::MSTATUS] = val;
+  case Address::MSTATUS:
+    regs[Address::MSTATUS] = (value & ~STATUS_XLEN_MASK) | STATUS_XLEN_64;
     break;
-  }
+  case Address::SSTATUS:
+    write(Address::MSTATUS, (regs[Address::MSTATUS] & ~Mask::SSTATUS) |
+                                (value & Mask::SSTATUS));
+    break;
   case Address::SIE: {
     uint64_t val = (regs[Address::MIE] & ~regs[Address::MIDELEG]) |
                    (value & regs[Address::MIDELEG]);
