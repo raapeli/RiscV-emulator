@@ -44,9 +44,12 @@ struct Address {
     SCAUSE = 0x142,
     STVAL = 0x143,
     SIP = 0x144,
+    STIMECMP = 0x14D,
+    STIMECMPH = 0x15D, // RV32 only
 
     SATP = 0x180,
     SCONTEXT = 0x5A8,
+    STOPI = 0xDB0,
 
     // Machine info
     MVENDORID = 0xF11,
@@ -54,6 +57,7 @@ struct Address {
     MIMPID = 0xF13,
     MHARTID = 0xF14,
     MCONFIGPTR = 0xF15,
+    MTOPI = 0xFB0,
 
     // Machine trap setup
     MSTATUS = 0x300,

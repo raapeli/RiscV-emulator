@@ -81,6 +81,25 @@ void test_clint() {
   regs.write(Address::MCOUNTEREN, 1U << 1);
   require(cpu.execute().has_value() && cpu.xregs->read(10) == bus.read(MTIME, DOUBLEWORD),
           "The time CSR must report the CLINT clock");
+
+  cpu.mode = Mode::MACHINE;
+  cpu.pc = DRAM_BASE;
+  bus.write(DRAM_BASE, WORD, 0x14d02573); // csrr a0, stimecmp
+  auto timer_probe = cpu.execute();
+  require(!timer_probe && timer_probe.error() == Exception::IllegalInstruction,
+          "Machine-mode probes must see that Sstc is unavailable");
+
+  bus.write(DRAM_BASE, WORD, 0xfb002573); // csrr a0, mtopi
+  auto interrupt_probe = cpu.execute();
+  require(!interrupt_probe &&
+              interrupt_probe.error() == Exception::IllegalInstruction,
+          "Machine-mode probes must see that AIA is unavailable");
+
+  cpu.mode = Mode::SUPERVISOR;
+  bus.write(DRAM_BASE, WORD, 0x14d01073); // csrw stimecmp, zero
+  auto write = cpu.execute();
+  require(!write && write.error() == Exception::IllegalInstruction,
+          "Supervisor writes must trap when Sstc is unavailable");
 }
 
 void test_plic() {

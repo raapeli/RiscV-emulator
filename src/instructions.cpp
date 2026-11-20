@@ -542,6 +542,11 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       return std::unexpected(Exception::IllegalInstruction);
     }
   } else { // CSR Instructions
+    // Firmware probes these CSRs before choosing a timer and interrupt handler.
+    if (csrAddr == csr::Address::STIMECMP || csrAddr == csr::Address::STIMECMPH ||
+        csrAddr == csr::Address::MTOPI || csrAddr == csr::Address::STOPI)
+      return std::unexpected(Exception::IllegalInstruction);
+
     if (csrAddr >= csr::Address::FFLAGS && csrAddr <= csr::Address::FCSR &&
         !cregs->floating_enabled())
       return std::unexpected(Exception::IllegalInstruction);
