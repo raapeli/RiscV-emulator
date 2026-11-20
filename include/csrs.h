@@ -200,6 +200,8 @@ public:
 
   uint64_t load(uint64_t addr);
   void write(uint64_t addr, uint64_t value);
+  bool floating_enabled() const;
+  void mark_floating_dirty();
 
   uint64_t read_bit(uint64_t addr, uint64_t offset);
   uint64_t read_bits(uint64_t addr, uint64_t upper_offset,

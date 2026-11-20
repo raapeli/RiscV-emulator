@@ -22,6 +22,10 @@ Csr::Csr() {
 
 uint64_t Csr::load(uint64_t addr) {
   switch (addr) {
+  case Address::FFLAGS:
+    return regs[Address::FCSR] & 0x1f;
+  case Address::FRM:
+    return regs[Address::FCSR] >> 5;
   case Address::SSTATUS:
     return regs[Address::MSTATUS] & Mask::SSTATUS;
   case Address::SIE:
@@ -44,6 +48,16 @@ uint64_t Csr::load(uint64_t addr) {
 
 void Csr::write(uint64_t addr, uint64_t value) {
   switch (addr) {
+  case Address::FFLAGS:
+    write(Address::FCSR, (regs[Address::FCSR] & 0xe0) | (value & 0x1f));
+    break;
+  case Address::FRM:
+    write(Address::FCSR, ((value & 7) << 5) | (regs[Address::FCSR] & 0x1f));
+    break;
+  case Address::FCSR:
+    regs[addr] = value & 0xff;
+    mark_floating_dirty();
+    break;
   case Address::PMPCFG0:
   case Address::PMPCFG2: {
     unsigned first = (addr - Address::PMPCFG0) * 4;
@@ -62,14 +76,18 @@ void Csr::write(uint64_t addr, uint64_t value) {
   }
   case Address::MISA:
     // Compressed instructions and two-byte instruction alignment are fixed.
-    regs[Address::MISA] = value | Misa::C_EXT;
+    regs[Address::MISA] = (value | Misa::C_EXT) & ~(Misa::F_EXT | Misa::D_EXT);
     break;
   case Address::MIDELEG:
     regs[Address::MIDELEG] = value & Mask::SUPERVISOR_INTERRUPTS;
     break;
-  case Address::MSTATUS:
-    regs[Address::MSTATUS] = (value & ~STATUS_XLEN_MASK) | STATUS_XLEN_64;
+  case Address::MSTATUS: {
+    const bool dirty = (value & Mask::FS) == Mask::FS ||
+                       (value & Mask::XS) == Mask::XS;
+    regs[addr] = (value & ~(STATUS_XLEN_MASK | Mask::SD)) | STATUS_XLEN_64 |
+                 (dirty ? static_cast<uint64_t>(Mask::SD) : 0);
     break;
+  }
   case Address::SSTATUS:
     write(Address::MSTATUS, (regs[Address::MSTATUS] & ~Mask::SSTATUS) |
                                 (value & Mask::SSTATUS));
@@ -113,6 +131,14 @@ void Csr::write(uint64_t addr, uint64_t value) {
     }
     regs[addr] = value;
   }
+}
+
+bool Csr::floating_enabled() const {
+  return (regs[Address::MSTATUS] & Mask::FS) != 0;
+}
+
+void Csr::mark_floating_dirty() {
+  write(Address::MSTATUS, regs[Address::MSTATUS] | Mask::FS);
 }
 
 uint8_t Csr::pmp_config(unsigned index) const {

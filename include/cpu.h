@@ -107,6 +107,7 @@ public:
 private:
   std::unordered_set<uint64_t> reservations;
   uint64_t next_pc;
+  std::array<uint64_t, REGISTER_COUNT> fregs{};
 
   using AddressResult = std::expected<uint64_t, Exception::ExceptionValue>;
   AddressResult resolve_memory_access(uint64_t addr, uint8_t size,
@@ -130,4 +131,7 @@ private:
   ExecResult exec_SYSTEM(uint64_t inst, std::stringstream *ss);
   ExecResult exec_FENCE(uint64_t inst, std::stringstream *ss);
   ExecResult exec_ATOMIC(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_FLOAT_LOAD(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_FLOAT_STORE(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_FLOAT(uint64_t inst, std::stringstream *ss);
 };

@@ -542,6 +542,10 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       return std::unexpected(Exception::IllegalInstruction);
     }
   } else { // CSR Instructions
+    if (csrAddr >= csr::Address::FFLAGS && csrAddr <= csr::Address::FCSR &&
+        !cregs->floating_enabled())
+      return std::unexpected(Exception::IllegalInstruction);
+
     uint64_t rs1 = RS1(inst);
     if (csrAddr >= csr::Address::PMPCFG0 && csrAddr <= csr::Address::PMPCFG15 &&
         (csrAddr & 1))

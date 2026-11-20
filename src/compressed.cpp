@@ -20,9 +20,9 @@ constexpr uint32_t i_type(uint32_t opcode, uint32_t funct3, uint32_t rd,
 }
 
 constexpr uint32_t store(uint32_t funct3, uint32_t rs1, uint32_t rs2,
-                         uint32_t imm) {
+                         uint32_t imm, uint32_t opcode = 0x23) {
   return ((imm >> 5) << 25) | (rs2 << 20) | (rs1 << 15) | (funct3 << 12) |
-         ((imm & 31) << 7) | 0x23;
+         ((imm & 31) << 7) | opcode;
 }
 
 constexpr uint32_t r_type(uint32_t opcode, uint32_t funct7, uint32_t funct3,
@@ -65,10 +65,14 @@ std::optional<uint32_t> Cpu::expand_compressed(uint16_t inst) {
         return std::nullopt;
       return i_type(0x13, 0, short_rd, 2, imm);
     }
+    case 1: // C.FLD
+      return i_type(0x07, 3, short_rd, short_rs1, double_offset);
     case 2: // C.LW
       return i_type(0x03, 2, short_rd, short_rs1, word_offset);
     case 3: // C.LD
       return i_type(0x03, 3, short_rd, short_rs1, double_offset);
+    case 5: // C.FSD
+      return store(3, short_rs1, short_rd, double_offset, 0x27);
     case 6: // C.SW
       return store(2, short_rs1, short_rd, word_offset);
     case 7: // C.SD
@@ -143,12 +147,13 @@ std::optional<uint32_t> Cpu::expand_compressed(uint16_t inst) {
                         field(inst, 3, 2, 6);
       return i_type(0x03, 2, rd, 2, offset);
     }
+    case 1: // C.FLDSP
     case 3: { // C.LDSP
-      if (rd == 0)
+      if (funct3 == 3 && rd == 0)
         return std::nullopt;
       uint32_t offset = field(inst, 12, 12, 5) | field(inst, 6, 5, 3) |
                         field(inst, 4, 2, 6);
-      return i_type(0x03, 3, rd, 2, offset);
+      return i_type(funct3 == 1 ? 0x07 : 0x03, 3, rd, 2, offset);
     }
     case 4: {
       const bool high = field(inst, 12, 12);
@@ -162,8 +167,10 @@ std::optional<uint32_t> Cpu::expand_compressed(uint16_t inst) {
     }
     case 6: // C.SWSP
       return store(2, 2, rs2, field(inst, 12, 9, 2) | field(inst, 8, 7, 6));
+    case 5: // C.FSDSP
     case 7: // C.SDSP
-      return store(3, 2, rs2, field(inst, 12, 10, 3) | field(inst, 9, 7, 6));
+      return store(3, 2, rs2, field(inst, 12, 10, 3) | field(inst, 9, 7, 6),
+                   funct3 == 5 ? 0x27 : 0x23);
     default:
       return std::nullopt;
     }
