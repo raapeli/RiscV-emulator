@@ -107,7 +107,8 @@ Cpu::ExecResult Cpu::execute(std::stringstream *ss) {
   prev_inst = inst;
   if (!result.has_value()) {
     if (result.error() == Exception::IllegalInstruction) {
-      std::println(*ss, "IllegalInstruction: 0x{:X}", inst);
+      if (ss)
+        std::println(*ss, "IllegalInstruction: 0x{:X}", inst);
       std::println("IllegalInstruction: 0x{:X}", inst);
     }
     return result;

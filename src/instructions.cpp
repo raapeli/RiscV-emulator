@@ -460,7 +460,7 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
   uint64_t csrAddr =
       IMM_I(inst) & 0xFFF; // Extract CSR addr from immediate field
 
-  if (funct3 == 0x0) {    // ecall, ebreak, sret, mret
+  if (funct3 == 0x0) {    // ecall, ebreak, sret, mret, wfi
     if (RS2(inst) == 1) { // ebreak
       DB(ss, inst, "ebreak");
       return std::unexpected(Exception::Breakpoint);
@@ -515,6 +515,15 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
           cregs->read_bit_sstatus(csr::Mask::SSTATUSBit::SPIE));
       cregs->write_bit_sstatus(csr::Mask::SSTATUSBit::SPIE, 1);
       cregs->write_bit_sstatus(csr::Mask::SSTATUSBit::SPP, 0);
+    } else if (csrAddr == 0x105 && RS1(inst) == 0 && RD(inst) == 0) { // wfi
+      DB(ss, inst, "wfi");
+      if (mode == Mode::USER ||
+          (mode == Mode::SUPERVISOR &&
+           cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::TW)))
+        return std::unexpected(Exception::IllegalInstruction);
+
+      // An implementation may resume immediately instead of stalling.
+      return {};
     } else {
       return std::unexpected(Exception::IllegalInstruction);
     }

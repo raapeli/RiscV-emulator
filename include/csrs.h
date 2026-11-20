@@ -129,6 +129,7 @@ struct Mask {
     SUM = 18,
     MXR = 19,
     TVM = 20,
+    TW = 21,
     TSR = 22,
   };
   static constexpr uint64_t MPP_HIGH_BIT = 12;
