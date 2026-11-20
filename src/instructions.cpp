@@ -48,7 +48,8 @@ Cpu::ExecResult Cpu::exec_OP_IMM(uint64_t inst, std::stringstream *ss) {
   uint64_t reg1 = this->xregs->read(RS1(inst));
   uint64_t result;
   uint64_t funct3 = FUNCT3(inst);
-  uint64_t funct7 = FUNCT7(inst);
+  uint64_t funct6 = FUNCT7(inst) >> 1;
+  uint64_t shamt = imm & 0x3F;
 
   switch (funct3) {
   case 0x0: { // addi
@@ -82,17 +83,19 @@ Cpu::ExecResult Cpu::exec_OP_IMM(uint64_t inst, std::stringstream *ss) {
     break;
   }
   case 0x1: { // slli
+    if (funct6 != 0)
+      return std::unexpected(Exception::IllegalInstruction);
     DB(ss, inst, "slli");
-    result = reg1 << static_cast<uint32_t>(imm & 0x3F);
+    result = reg1 << shamt;
     break;
   }
   case 0x5: { // srli or srai
-    if (funct7 == 0x20) {
+    if (funct6 == 0x10) {
       DB(ss, inst, "srai");
-      result = static_cast<int64_t>(reg1) >> imm;
-    } else if (funct7 == 0) {
+      result = static_cast<int64_t>(reg1) >> shamt;
+    } else if (funct6 == 0) {
       DB(ss, inst, "srli");
-      result = reg1 >> static_cast<uint32_t>(imm & 0x3F);
+      result = reg1 >> shamt;
     } else {
       return std::unexpected(Exception::IllegalInstruction);
     }
