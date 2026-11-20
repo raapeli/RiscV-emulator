@@ -176,6 +176,12 @@ Cpu::ExecResult Cpu::executeGeneral(uint64_t inst, std::stringstream *ss) {
   case 0x53:
     res = exec_FLOAT(inst, ss);
     break;
+  case 0x43:
+  case 0x47:
+  case 0x4b:
+  case 0x4f:
+    res = exec_FLOAT_FUSED(inst, ss);
+    break;
   case 0x6F:
     res = exec_JAL(inst, ss);
     break;

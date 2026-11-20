@@ -12,6 +12,8 @@ constexpr uint64_t DOUBLE_NAN = 0x7ff8000000000000ULL;
 constexpr uint64_t SIGNALING_NAN_CLASS = 1ULL << 8;
 constexpr uint64_t QUIET_NAN_CLASS = 1ULL << 9;
 constexpr uint64_t NAN_CLASSES = SIGNALING_NAN_CLASS | QUIET_NAN_CLASS;
+constexpr uint64_t INFINITY_CLASSES = (1ULL << 0) | (1ULL << 7);
+constexpr uint64_t ZERO_CLASSES = (1ULL << 3) | (1ULL << 4);
 constexpr uint64_t INVALID_FLAG = 1ULL << 4;
 constexpr uint64_t DIVIDE_BY_ZERO_FLAG = 1ULL << 3;
 constexpr uint64_t OVERFLOW_FLAG = 1ULL << 2;
@@ -19,6 +21,7 @@ constexpr uint64_t UNDERFLOW_FLAG = 1ULL << 1;
 constexpr uint64_t INEXACT_FLAG = 1ULL;
 
 enum RoundingMode : unsigned { RNE, RTZ, RDN, RUP, RMM, DYNAMIC = 7 };
+enum ArithmeticOperation : unsigned { ADD, SUB, MUL, DIV, SQRT = 0x0b, FUSED };
 
 struct FloatResult {
   uint64_t bits;
@@ -65,9 +68,10 @@ uint64_t classify(uint64_t bits, bool wide) {
       return 1ULL << (negative ? 0 : 7); // Negative or positive infinity.
     // The top fraction bit distinguishes quiet NaNs from signaling NaNs.
     return (fraction >> (fraction_width - 1)) ? QUIET_NAN_CLASS
-                                               : SIGNALING_NAN_CLASS;
+                                              : SIGNALING_NAN_CLASS;
   }
-  // A zero exponent encodes signed zero or a subnormal, depending on the fraction.
+  // A zero exponent encodes signed zero or a subnormal, depending on the
+  // fraction.
   if (exponent == 0)
     return 1ULL << (fraction == 0 ? (negative ? 3 : 4) : (negative ? 2 : 5));
   return 1ULL << (negative ? 1 : 6); // Negative or positive normal value.
@@ -107,7 +111,9 @@ FloatResult round_result(mpfr_ptr number, bool wide, unsigned mode,
     if (mode == RMM)
       mpfr_round(number, number); // Round to nearest integer, ties away.
     const bool away = (mode == RDN && negative) || (mode == RUP && !negative);
-    const mpfr_rnd_t rounding = mode == RNE ? MPFR_RNDN : away ? MPFR_RNDU : MPFR_RNDZ;
+    const mpfr_rnd_t rounding = mode == RNE ? MPFR_RNDN
+                                : away      ? MPFR_RNDU
+                                            : MPFR_RNDZ;
     significand = mpfr_get_uj(number, rounding);
     if (significand == 2 * hidden_bit) {
       significand >>= 1;
@@ -117,7 +123,8 @@ FloatResult round_result(mpfr_ptr number, bool wide, unsigned mode,
 
   if (exponent > max_exponent) {
     const bool to_infinity = mode == RNE || mode == RMM ||
-                             (mode == RDN && negative) || (mode == RUP && !negative);
+                             (mode == RDN && negative) ||
+                             (mode == RUP && !negative);
     return {sign | (to_infinity ? infinity : infinity - 1),
             OVERFLOW_FLAG | INEXACT_FLAG};
   }
@@ -138,38 +145,50 @@ void set_operand(mpfr_ptr dest, uint64_t bits, bool wide) {
 }
 
 FloatResult arithmetic(unsigned operation, unsigned mode, bool wide,
-                       uint64_t lhs, uint64_t rhs) {
+                       uint64_t lhs, uint64_t rhs, uint64_t addend = 0) {
   const auto canonical_nan = wide ? DOUBLE_NAN : SINGLE_NAN;
-  const uint64_t classes = classify(lhs, wide) |
-                           (operation == 0x0b ? 0 : classify(rhs, wide));
+  const uint64_t lhs_class = classify(lhs, wide);
+  const uint64_t rhs_class = operation == SQRT ? 0 : classify(rhs, wide);
+  const uint64_t addend_class = operation == FUSED ? classify(addend, wide) : 0;
+  const uint64_t classes = lhs_class | rhs_class | addend_class;
+  // Infinity times zero raises Invalid even if the addend is a quiet NaN.
+  if (operation == FUSED && ((lhs_class | rhs_class) & INFINITY_CLASSES) &&
+      ((lhs_class | rhs_class) & ZERO_CLASSES))
+    return {canonical_nan, INVALID_FLAG};
   if (classes & NAN_CLASSES)
     return {canonical_nan, classes & SIGNALING_NAN_CLASS ? INVALID_FLAG : 0};
 
   MpfrFlags flags;
   MpfrNumber a(53), b(53);
-  // This covers the full finite binary64 exponent span for exact sums and
-  // products, with ample precision to distinguish division and sqrt midpoints.
+  // This covers exact fused products and sums across binary64's exponent span.
+  // It also distinguishes division and square-root rounding midpoints.
   MpfrNumber result(3328);
   set_operand(a.value, lhs, wide);
-  if (operation != 0x0b)
+  if (operation != SQRT)
     set_operand(b.value, rhs, wide);
   mpfr_clear_divby0();
   const mpfr_rnd_t intermediate = mode == RDN ? MPFR_RNDD : MPFR_RNDN;
   int rounded;
   switch (operation) {
-  case 0x00:
+  case ADD:
     rounded = mpfr_add(result.value, a.value, b.value, intermediate);
     break;
-  case 0x01:
+  case SUB:
     rounded = mpfr_sub(result.value, a.value, b.value, intermediate);
     break;
-  case 0x02:
+  case MUL:
     rounded = mpfr_mul(result.value, a.value, b.value, intermediate);
     break;
-  case 0x03:
+  case DIV:
     rounded = mpfr_div(result.value, a.value, b.value, intermediate);
     break;
-  default: // FSQRT
+  case FUSED: {
+    MpfrNumber c(53);
+    set_operand(c.value, addend, wide);
+    rounded = mpfr_fma(result.value, a.value, b.value, c.value, intermediate);
+    break;
+  }
+  default: // SQRT
     rounded = mpfr_sqrt(result.value, a.value, intermediate);
     break;
   }
@@ -182,6 +201,52 @@ FloatResult arithmetic(unsigned operation, unsigned mode, bool wide,
 }
 
 } // namespace
+
+void Cpu::accrue_floating_flags(uint64_t flags) {
+  if (flags)
+    cregs->write(csr::Address::FFLAGS,
+                 cregs->load(csr::Address::FFLAGS) | flags);
+}
+
+void Cpu::write_floating_result(uint64_t rd, bool wide, uint64_t bits,
+                                uint64_t flags) {
+  fregs[rd] = wide ? bits : box_single(bits);
+  accrue_floating_flags(flags);
+  cregs->mark_floating_dirty();
+}
+
+Cpu::ExecResult Cpu::exec_FLOAT_FUSED(uint64_t inst, std::stringstream *ss) {
+  const auto format = FUNCT7(inst) & 3;
+  const auto rm = FUNCT3(inst);
+  const unsigned rounding = rm == DYNAMIC ? cregs->load(csr::Address::FRM) : rm;
+  if (!cregs->floating_enabled() || format > 1 || rounding > RMM)
+    return std::unexpected(Exception::IllegalInstruction);
+
+  const bool wide = format == 1;
+  const auto opcode = OPCODE(inst);
+  [[maybe_unused]] constexpr const char *mnemonics[][2] = {
+      {"fmadd.s", "fmadd.d"},
+      {"fmsub.s", "fmsub.d"},
+      {"fnmsub.s", "fnmsub.d"},
+      {"fnmadd.s", "fnmadd.d"},
+  };
+  DB(ss, inst, mnemonics[(opcode - 0x43) / 4][wide]);
+
+  auto operand = [this, wide](uint64_t reg) -> uint64_t {
+    return wide ? fregs[reg] : single_operand(fregs[reg]);
+  };
+  const uint64_t sign = 1ULL << (wide ? 63 : 31);
+  uint64_t lhs = operand(RS1(inst));
+  uint64_t addend = operand((inst >> 27) & 31);
+  if (opcode == 0x4b || opcode == 0x4f)
+    lhs ^= sign;
+  if (opcode == 0x47 || opcode == 0x4f)
+    addend ^= sign;
+  const auto result =
+      arithmetic(FUSED, rounding, wide, lhs, operand(RS2(inst)), addend);
+  write_floating_result(RD(inst), wide, result.bits, result.flags);
+  return {};
+}
 
 Cpu::ExecResult Cpu::exec_FLOAT_LOAD(uint64_t inst, std::stringstream *ss) {
   const auto funct3 = FUNCT3(inst);
@@ -235,34 +300,29 @@ Cpu::ExecResult Cpu::exec_FLOAT(uint64_t inst, std::stringstream *ss) {
   auto operand = [this, wide](uint64_t reg) -> uint64_t {
     return wide ? fregs[reg] : single_operand(fregs[reg]);
   };
-  auto raise_flags = [this](uint64_t flags) {
-    if (flags)
-      cregs->write(csr::Address::FFLAGS,
-                   cregs->load(csr::Address::FFLAGS) | flags);
-  };
-
   const unsigned operation = funct7 >> 2;
   switch (operation) {
-  case 0x00: // FADD
-  case 0x01: // FSUB
-  case 0x02: // FMUL
-  case 0x03: // FDIV
-  case 0x0b: { // FSQRT
-    const unsigned rounding = funct3 == DYNAMIC ? cregs->load(csr::Address::FRM)
-                                                : funct3;
-    if (rounding > RMM || (operation == 0x0b && rs2 != 0))
+  case ADD:
+  case SUB:
+  case MUL:
+  case DIV:
+  case SQRT: {
+    const unsigned rounding =
+        funct3 == DYNAMIC ? cregs->load(csr::Address::FRM) : funct3;
+    if (rounding > RMM || (operation == SQRT && rs2 != 0))
       return std::unexpected(Exception::IllegalInstruction);
     [[maybe_unused]] constexpr const char *mnemonics[][2] = {
-        {"fadd.s", "fadd.d"}, {"fsub.s", "fsub.d"},
-        {"fmul.s", "fmul.d"}, {"fdiv.s", "fdiv.d"},
+        {"fadd.s", "fadd.d"},
+        {"fsub.s", "fsub.d"},
+        {"fmul.s", "fmul.d"},
+        {"fdiv.s", "fdiv.d"},
     };
-    DB(ss, inst, operation == 0x0b ? (wide ? "fsqrt.d" : "fsqrt.s")
-                                   : mnemonics[operation][wide]);
-    const auto result = arithmetic(operation, rounding, wide, operand(rs1),
-                                   operand(rs2));
-    fregs[rd] = wide ? result.bits : box_single(result.bits);
-    raise_flags(result.flags);
-    cregs->mark_floating_dirty();
+    DB(ss, inst,
+       operation == SQRT ? (wide ? "fsqrt.d" : "fsqrt.s")
+                         : mnemonics[operation][wide]);
+    const auto result =
+        arithmetic(operation, rounding, wide, operand(rs1), operand(rs2));
+    write_floating_result(rd, wide, result.bits, result.flags);
     return {};
   }
   case 0x04: { // FSGNJ, FSGNJN, FSGNJX
@@ -284,18 +344,20 @@ Cpu::ExecResult Cpu::exec_FLOAT(uint64_t inst, std::stringstream *ss) {
   case 0x05: { // FMIN and FMAX
     if (funct3 > 1)
       return std::unexpected(Exception::IllegalInstruction);
-    DB(ss, inst, funct3 == 0 ? (wide ? "fmin.d" : "fmin.s")
-                             : (wide ? "fmax.d" : "fmax.s"));
+    DB(ss, inst,
+       funct3 == 0 ? (wide ? "fmin.d" : "fmin.s")
+                   : (wide ? "fmax.d" : "fmax.s"));
     const uint64_t lhs = operand(rs1);
     const uint64_t rhs = operand(rs2);
     const uint64_t lhs_class = classify(lhs, wide);
     const uint64_t rhs_class = classify(rhs, wide);
     if ((lhs_class | rhs_class) & SIGNALING_NAN_CLASS)
-      raise_flags(INVALID_FLAG);
+      accrue_floating_flags(INVALID_FLAG);
 
     uint64_t result = lhs;
     if (lhs_class & NAN_CLASSES)
-      result = (rhs_class & NAN_CLASSES) ? (wide ? DOUBLE_NAN : SINGLE_NAN) : rhs;
+      result =
+          (rhs_class & NAN_CLASSES) ? (wide ? DOUBLE_NAN : SINGLE_NAN) : rhs;
     else if (!(rhs_class & NAN_CLASSES))
       result = less_than(lhs, rhs, sign_mask) == (funct3 == 0) ? lhs : rhs;
 
@@ -312,7 +374,7 @@ Cpu::ExecResult Cpu::exec_FLOAT(uint64_t inst, std::stringstream *ss) {
     const uint64_t classes = classify(lhs, wide) | classify(rhs, wide);
     if (classes & NAN_CLASSES) {
       if (funct3 != 2 || (classes & SIGNALING_NAN_CLASS))
-        raise_flags(INVALID_FLAG);
+        accrue_floating_flags(INVALID_FLAG);
       xregs->write(rd, 0);
       return {};
     }
@@ -330,7 +392,8 @@ Cpu::ExecResult Cpu::exec_FLOAT(uint64_t inst, std::stringstream *ss) {
       xregs->write(rd, classify(operand(rs1), wide));
     } else {
       DB(ss, inst, wide ? "fmv.x.d" : "fmv.x.w");
-      xregs->write(rd, wide ? fregs[rs1] : SIGNEXTEND_CAST(fregs[rs1], int32_t));
+      xregs->write(rd,
+                   wide ? fregs[rs1] : SIGNEXTEND_CAST(fregs[rs1], int32_t));
     }
     return {};
   case 0x1e: // FMV.W.X, FMV.D.X

@@ -134,4 +134,8 @@ private:
   ExecResult exec_FLOAT_LOAD(uint64_t inst, std::stringstream *ss);
   ExecResult exec_FLOAT_STORE(uint64_t inst, std::stringstream *ss);
   ExecResult exec_FLOAT(uint64_t inst, std::stringstream *ss);
+  ExecResult exec_FLOAT_FUSED(uint64_t inst, std::stringstream *ss);
+  void accrue_floating_flags(uint64_t flags);
+  void write_floating_result(uint64_t rd, bool wide, uint64_t bits,
+                             uint64_t flags);
 };

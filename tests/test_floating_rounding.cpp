@@ -62,4 +62,26 @@ int main() {
   regs.write(Address::FFLAGS, 1);
   require(compute(0x18100153) == 0x7f800000 && regs.load(Address::FFLAGS) == 9,
           "Divide by zero must preserve previously accrued flags");
+
+  auto addend = [&](uint64_t bits, bool wide = false) {
+    cpu.xregs->write(12, bits);
+    execute(wide ? 0xf20601d3 : 0xf00601d3); // fmv.w.x f3, a2 (or fmv.d.x)
+  };
+
+  operands(0x3f800001, 0x3f7ffffe); // (1 + 2^-23) * (1 - 2^-23).
+  addend(0xbf800000);
+  require(compute(0x18100143) == 0xffffffffa8800000ULL &&
+              regs.load(Address::FFLAGS) == 0,
+          "Single-precision FMA must retain the exact product through cancellation");
+
+  operands(0x3ff0000000000001ULL, 0x3feffffffffffffeULL, true);
+  addend(0xbff0000000000000ULL, true);
+  require(compute(0x1a100143, true) == 0xb970000000000000ULL &&
+              regs.load(Address::FFLAGS) == 0,
+          "Double-precision FMA must retain the exact product through cancellation");
+
+  operands(0x7f800000, 0);
+  addend(0x7fffffff);
+  require(compute(0x18100143) == 0x7fc00000 && regs.load(Address::FFLAGS) == 16,
+          "FMA must signal Invalid for infinity times zero with a quiet NaN addend");
 }
