@@ -42,7 +42,9 @@ void Csr::write(uint64_t addr, uint64_t value) {
     regs[Address::MIDELEG] = value & Mask::SUPERVISOR_INTERRUPTS;
     break;
   case Address::MSTATUS:
-    regs[Address::MSTATUS] = (value & ~STATUS_XLEN_MASK) | STATUS_XLEN_64;
+    // SUM is read-only zero when satp only supports Bare mode.
+    regs[Address::MSTATUS] = (value & ~(STATUS_XLEN_MASK | Mask::SUM)) |
+                             STATUS_XLEN_64;
     break;
   case Address::SSTATUS:
     write(Address::MSTATUS, (regs[Address::MSTATUS] & ~Mask::SSTATUS) |
@@ -65,6 +67,9 @@ void Csr::write(uint64_t addr, uint64_t value) {
   case Address::TDATA2:
   case Address::TDATA3:
   case Address::TINFO:
+    break;
+  case Address::SATP:
+    // Bare is the only supported address translation mode.
     break;
   default:
     regs[addr] = value;

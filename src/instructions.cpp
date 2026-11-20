@@ -459,12 +459,22 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
   uint64_t funct3 = FUNCT3(inst);
   uint64_t csrAddr =
       IMM_I(inst) & 0xFFF; // Extract CSR addr from immediate field
+  bool trap_vm = mode == Mode::SUPERVISOR &&
+                 cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::TVM);
 
-  if (funct3 == 0x0) {    // ecall, ebreak, sret, mret, wfi
-    if (RS2(inst) == 1) { // ebreak
+  if (funct3 == 0x0) { // Privileged SYSTEM instructions
+    bool zero_registers = RS1(inst) == 0 && RD(inst) == 0;
+    if (FUNCT7(inst) == 0x09 && RD(inst) == 0) { // sfence.vma
+      DB(ss, inst, "sfence.vma");
+      if (mode == Mode::USER || trap_vm)
+        return std::unexpected(Exception::IllegalInstruction);
+
+      // Bare mode has no address translations to invalidate.
+      return {};
+    } else if (csrAddr == 0x001 && zero_registers) { // ebreak
       DB(ss, inst, "ebreak");
       return std::unexpected(Exception::Breakpoint);
-    } else if (RS2(inst) == 0) { // ecall
+    } else if (csrAddr == 0x000 && zero_registers) { // ecall
       DB(ss, inst, "ecall");
       switch (mode) {
       case Mode::MACHINE:
@@ -474,7 +484,7 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       case Mode::USER:
         return std::unexpected(Exception::EnvironmentCallUmode);
       }
-    } else if (csrAddr == 0x302 && RS1(inst) == 0 && RD(inst) == 0) { // mret
+    } else if (csrAddr == 0x302 && zero_registers) { // mret
       DB(ss, inst, "mret");
       if (this->mode != Mode::MACHINE)
         return std::unexpected(Exception::IllegalInstruction);
@@ -497,7 +507,7 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPIE, 1);
       cregs->write_bits(csr::Address::MSTATUS, csr::Mask::MPP_HIGH_BIT,
                         csr::Mask::MPP_LOW_BIT, Mode::USER);
-    } else if (csrAddr == 0x102 && RS1(inst) == 0 && RD(inst) == 0) { // sret
+    } else if (csrAddr == 0x102 && zero_registers) { // sret
       DB(ss, inst, "sret");
       if (mode == Mode::USER ||
           (mode == Mode::SUPERVISOR &&
@@ -515,7 +525,7 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
           cregs->read_bit_sstatus(csr::Mask::SSTATUSBit::SPIE));
       cregs->write_bit_sstatus(csr::Mask::SSTATUSBit::SPIE, 1);
       cregs->write_bit_sstatus(csr::Mask::SSTATUSBit::SPP, 0);
-    } else if (csrAddr == 0x105 && RS1(inst) == 0 && RD(inst) == 0) { // wfi
+    } else if (csrAddr == 0x105 && zero_registers) { // wfi
       DB(ss, inst, "wfi");
       if (mode == Mode::USER ||
           (mode == Mode::SUPERVISOR &&
@@ -534,7 +544,8 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
     bool read_only = (csrAddr >> 10) == 3;
     bool swap = (funct3 & 3) == 1;
     bool writes_csr = swap || rs1 != 0;
-    if (mode < csr_mode || (read_only && writes_csr))
+    if (mode < csr_mode || (read_only && writes_csr) ||
+        (csrAddr == csr::Address::SATP && trap_vm))
       return std::unexpected(Exception::IllegalInstruction);
 
     uint64_t reg1 = xregs->read(rs1);
