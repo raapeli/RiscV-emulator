@@ -125,8 +125,31 @@ poll_input:
     sb t0, 0(s0)
 wait_interrupt:
     beqz s1, wait_interrupt
+
+    # Send the DTB at the firmware handoff address to the host test.
+    lbu t0, 4(a1)
+    lbu t1, 5(a1)
+    slli t0, t0, 8
+    or t0, t0, t1
+    lbu t1, 6(a1)
+    slli t0, t0, 8
+    or t0, t0, t1
+    lbu t1, 7(a1)
+    slli t0, t0, 8
+    or t0, t0, t1
+    li t1, 40
+    bltu t0, t1, fail
+    li t1, 0x200000
+    bltu t1, t0, fail
+    add t1, a1, t0
     li t0, 'R'
-    j report
+    sb t0, 0(s0)
+dump_dtb:
+    lbu t0, 0(a1)
+    sb t0, 0(s0)
+    addi a1, a1, 1
+    bltu a1, t1, dump_dtb
+    j halt
 
 .balign 4
 uart_interrupt:
@@ -157,5 +180,5 @@ fail:
 report:
     li t1, UART
     sb t0, 0(t1)
-1:
-    j 1b
+halt:
+    j halt

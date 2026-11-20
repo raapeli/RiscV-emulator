@@ -1,5 +1,6 @@
 #include "bus.h"
 #include "cpu.h"
+#include "linux_boot.h"
 
 #include <algorithm>
 #include <array>
@@ -7,19 +8,12 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 namespace {
-
-constexpr uint64_t LINUX_RAM_BASE = 0x80000000;
-constexpr uint64_t LINUX_RAM_SIZE = 128 * 1024 * 1024;
-constexpr uint64_t LINUX_KERNEL = 0x80200000;
-constexpr uint64_t LINUX_INITRD = 0x84000000;
-constexpr uint64_t LINUX_DTB = 0x87e00000;
-constexpr Bus::DeviceMap LINUX_DEVICES{
-    0x02000000, 0x0c000000, Bus::UartMapping{0x10000000, 10}};
 
 struct BootImage {
   std::string_view option;
@@ -72,13 +66,16 @@ int run_flat_binary(const char *path) {
 }
 
 int run_linux(int argc, char *argv[]) {
+  using namespace linux_boot;
+
   // Each image is confined to the region before the next image.
   std::array images{
-      BootImage{"--firmware", LINUX_RAM_BASE, LINUX_KERNEL},
-      BootImage{"--kernel", LINUX_KERNEL, LINUX_INITRD},
-      BootImage{"--initrd", LINUX_INITRD, LINUX_DTB},
-      BootImage{"--dtb", LINUX_DTB, LINUX_RAM_BASE + LINUX_RAM_SIZE},
+      BootImage{"--firmware", RAM_BASE, KERNEL_ADDRESS},
+      BootImage{"--kernel", KERNEL_ADDRESS, INITRD_ADDRESS},
+      BootImage{"--initrd", INITRD_ADDRESS, DTB_ADDRESS},
+      BootImage{"--dtb", DTB_ADDRESS, RAM_BASE + RAM_SIZE},
   };
+  auto &[firmware, kernel, initrd, dtb] = images;
   for (int i = 2; i < argc; i += 2) {
     const std::string_view option = argv[i];
     auto image = std::ranges::find(images, option, &BootImage::option);
@@ -92,6 +89,8 @@ int run_linux(int argc, char *argv[]) {
 
   for (auto &image : images) {
     if (!image.path) {
+      if (&image == &dtb)
+        continue;
       std::cerr << "Missing Linux boot argument: " << image.option << '\n';
       return 1;
     }
@@ -102,14 +101,24 @@ int run_linux(int argc, char *argv[]) {
     image.bytes = std::move(*bytes);
   }
 
-  Bus bus(true, LINUX_RAM_BASE, LINUX_RAM_SIZE, LINUX_DEVICES);
+  if (!dtb.path) {
+    try {
+      dtb.bytes = make_dtb(initrd.bytes.size());
+    } catch (const std::runtime_error &error) {
+      std::cerr << "Could not generate Linux device tree: " << error.what()
+                << '\n';
+      return 1;
+    }
+  }
+
+  Bus bus(true, RAM_BASE, RAM_SIZE, DEVICES);
   for (const auto &image : images)
     std::ranges::copy(image.bytes,
                       bus.dram.begin() + (image.address - bus.ram_base));
 
   Cpu cpu(&bus);
-  cpu.xregs->write(10, 0);         // a0: hart ID
-  cpu.xregs->write(11, LINUX_DTB); // a1: physical DTB address
+  cpu.xregs->write(10, 0);           // a0: hart ID
+  cpu.xregs->write(11, DTB_ADDRESS); // a1: physical DTB address
   cpu.start();
   return 0;
 }
@@ -123,7 +132,7 @@ int main(int argc, char *argv[]) {
     return run_flat_binary(argv[1]);
 
   std::cerr << "Usage: RiscV BINARY\n"
-               "       RiscV --linux --firmware FILE --kernel FILE --dtb FILE "
-               "--initrd FILE\n";
+               "       RiscV --linux --firmware FILE --kernel FILE "
+               "--initrd FILE [--dtb FILE]\n";
   return 1;
 }

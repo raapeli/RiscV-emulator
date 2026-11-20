@@ -9,11 +9,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_path(MPFR_INCLUDE_DIR NAMES mpfr.h REQUIRED)
 find_library(MPFR_LIBRARY NAMES mpfr REQUIRED)
+find_path(LIBFDT_INCLUDE_DIR NAMES libfdt.h REQUIRED)
+find_library(LIBFDT_LIBRARY NAMES fdt REQUIRED)
 
 add_compile_options(-ggdb3 -Wall -Wextra -Wpedantic -fcolor-diagnostics
       -DDEBUG -std=c++23)
 add_executable(RiscV
   src/main.cpp
+  src/linux_boot.cpp
   src/bus.cpp
   src/cpu.cpp
   src/exception.cpp
@@ -37,7 +40,9 @@ target_include_directories(emulator PUBLIC include)
 target_include_directories(RiscV
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${LIBFDT_INCLUDE_DIR}
 )
+target_link_libraries(RiscV PRIVATE ${LIBFDT_LIBRARY})
 
 foreach(target RiscV emulator)
   target_include_directories(${target} PRIVATE ${MPFR_INCLUDE_DIR})

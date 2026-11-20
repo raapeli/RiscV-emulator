@@ -19,7 +19,8 @@ A Risc-V emulator built in modern C++23.
 
 ### Requirements
 
-CMake, Clang, and the MPFR development headers and library (`mpfr` on Arch).
+CMake, Clang, MPFR, and libfdt development headers and libraries
+(`mpfr` and `dtc` on Arch).
 
 ```
 $ git clone --recurse-submodules https://github.com/raapeli/RiscV-emulator.git
@@ -53,20 +54,25 @@ Run the program RiscV with an argument to a RiscV binary with no headers.
 
 ### Linux boot image loader
 
-The Linux boot mode loads four files into 128 MiB of guest RAM and starts the
+The Linux boot mode loads the boot images into 128 MiB of guest RAM and starts the
 firmware in machine mode with hart ID zero and the DTB address in `a0` and `a1`.
 
 ```sh
 ./build/RiscV --linux --firmware fw_jump.bin --kernel Image \
-  --dtb guest.dtb --initrd initramfs.cpio
+  --initrd initramfs.cpio
 ```
 
 The firmware, kernel, initramfs, and DTB start at `0x80000000`, `0x80200000`,
-`0x84000000`, and `0x87e00000` respectively. The supplied DTB is passed through
-as-is. Linux mode exposes a single-hart CLINT at `0x02000000`, a PLIC at
+`0x84000000`, and `0x87e00000` respectively. The generated DTB describes the
+single RV64 hart, Sv39, RAM, and MMIO devices. It also sets the serial console
+and the initramfs bounds using the image size. Pass `--dtb guest.dtb` to supply
+a custom tree with its own boot arguments and initramfs bounds.
+
+Linux mode exposes a single-hart CLINT at `0x02000000`, a PLIC at
 `0x0c000000`, and a byte-wide 16550 UART at `0x10000000` wired to PLIC source
-10. The timer advances once per emulator tick. The UART connects to standard
-input and output and uses the host terminal's line mode.
+10. The timer advances once per emulator tick with a nominal timebase of 10 MHz.
+The UART connects to standard input and output and uses the host terminal's
+line mode.
 
 Other machine configurations can attach these devices independently through
 `Bus::DeviceMap`. The UART models the divisor latch, receive FIFO, loopback,

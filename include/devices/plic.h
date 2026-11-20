@@ -5,6 +5,9 @@
 
 class Plic {
 public:
+  static constexpr uint64_t MMIO_SIZE = 0x04000000;
+  static constexpr unsigned SOURCE_COUNT = 32;
+
   explicit Plic(uint64_t base) : base(base) {}
   bool contains_access(uint64_t address, uint8_t size) const;
   uint64_t read(uint64_t address, uint8_t size);
@@ -13,7 +16,6 @@ public:
   void set_external_level(unsigned source, bool asserted);
 
 private:
-  static constexpr unsigned SOURCE_COUNT = 32;
   struct Context {
     uint32_t enabled = 0;
     uint32_t threshold = 0;

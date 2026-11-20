@@ -3,7 +3,6 @@
 
 namespace {
 
-constexpr uint64_t PLIC_SIZE = 0x04000000;
 constexpr uint64_t PLIC_PENDING = 0x1000;
 constexpr uint64_t PLIC_ENABLE = 0x2000;
 constexpr uint64_t PLIC_ENABLE_STRIDE = 0x80;
@@ -15,7 +14,7 @@ constexpr uint64_t PLIC_CONTEXT_STRIDE = 0x1000;
 bool Plic::contains_access(uint64_t address, uint8_t size) const {
   const uint64_t offset = address - base;
   return size == WORD && address >= base && (offset & 3) == 0 &&
-         offset < PLIC_SIZE;
+         offset < MMIO_SIZE;
 }
 
 uint64_t Plic::read(uint64_t address, uint8_t size) {
