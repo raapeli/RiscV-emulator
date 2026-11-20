@@ -87,6 +87,7 @@ void Cpu::oneTick(std::stringstream *debug_str) {
   Trap trap;
 
   if (const auto exc_val = this->execute(debug_str); exc_val.has_value()) {
+    exception.exception = Exception::None;
     trap = Trap::Requested;
   } else {
     exception.exception = exc_val.error();
@@ -99,8 +100,6 @@ void Cpu::oneTick(std::stringstream *debug_str) {
       *debug_str << "Fatal trap";
     return;
   }
-
-  //  exception.exception = Exception::None;
 }
 Cpu::ExecResult Cpu::execute(std::stringstream *ss) {
   uint64_t inst = this->fetch();

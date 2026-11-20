@@ -54,13 +54,16 @@ int test_binary(const std::filesystem::directory_entry entry) {
   while (!timeout) {
     cpu->oneTick(&ss);
 
+    // Breakpoints with a guest trap handler can resume on the next tick.
     if (cpu->exception.exception == Exception::EnvironmentCallMmode ||
         cpu->exception.exception == Exception::EnvironmentCallUmode ||
         cpu->exception.exception == Exception::EnvironmentCallSmode) {
       a0 = cpu->xregs->read(10);
       reached_ecall = true;
       break;
-    } else if (cpu->exception.exception != Exception::None) {
+    } else if (cpu->exception.exception != Exception::None &&
+               (cpu->exception.exception != Exception::Breakpoint ||
+                cpu->pc < DRAM_BASE)) {
       break;
     }
 
