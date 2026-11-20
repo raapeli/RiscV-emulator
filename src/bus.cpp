@@ -5,8 +5,7 @@
 #include <poll.h>
 #include <unistd.h>
 
-Bus::Bus(bool enable_console, uint64_t base, uint64_t size,
-         DeviceMap devices)
+Bus::Bus(bool enable_console, uint64_t base, uint64_t size, DeviceMap devices)
     : ram_base(base), dram(size, 0), console_enabled(enable_console) {
   if (devices.clint)
     clint_device.emplace(*devices.clint);
@@ -32,10 +31,12 @@ bool Bus::contains_ram_access(uint64_t addr, uint8_t size) const {
     return false;
   const uint64_t offset = addr - ram_base;
   return addr >= ram_base && offset < dram.size() &&
-         size / 8 <= dram.size() - offset && addr <= UINT64_MAX - (size / 8 - 1);
+         size / 8 <= dram.size() - offset &&
+         addr <= UINT64_MAX - (size / 8 - 1);
 }
 
-bool Bus::contains_console_access(uint64_t addr, uint8_t size, bool write) const {
+bool Bus::contains_console_access(uint64_t addr, uint8_t size,
+                                  bool write) const {
   return console_enabled && !uart_device && size == BYTE &&
          (addr == CONSOLE_DATA || (!write && addr == CONSOLE_STATUS));
 }
@@ -90,6 +91,20 @@ void Bus::tick_uart() {
 }
 
 uint64_t Bus::read(uint64_t addr, uint8_t size) {
+
+  if (contains_ram_access(addr, size)) {
+    switch (size) {
+    case BYTE:
+      return read8(addr);
+    case HALFWORD:
+      return read16(addr);
+    case WORD:
+      return read32(addr);
+    case DOUBLEWORD:
+      return read64(addr);
+    }
+  }
+
   if (clint_device && clint_device->contains_access(addr, size))
     return clint_device->read(addr, size);
   if (plic_device && plic_device->contains_access(addr, size))
@@ -112,19 +127,6 @@ uint64_t Bus::read(uint64_t addr, uint8_t size) {
     return byte;
   }
 
-  if (contains_ram_access(addr, size)) {
-    switch (size) {
-    case BYTE:
-      return read8(addr);
-    case HALFWORD:
-      return read16(addr);
-    case WORD:
-      return read32(addr);
-    case DOUBLEWORD:
-      return read64(addr);
-    }
-  }
-
   return -1;
 }
 
@@ -145,7 +147,8 @@ void Bus::write(uint64_t addr, uint8_t size, uint64_t value) {
     return;
   }
   if (uart_device && uart_device->contains_access(addr, size)) {
-    if (auto byte = uart_device->write(addr, size, value); byte && console_enabled)
+    if (auto byte = uart_device->write(addr, size, value);
+        byte && console_enabled)
       std::cout.put(static_cast<char>(*byte)).flush();
     update_uart_interrupt();
     return;
