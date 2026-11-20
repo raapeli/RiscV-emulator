@@ -46,7 +46,7 @@ int test_binary(const std::filesystem::directory_entry entry) {
   uint64_t a0 = 10;
 
   bool timeout = false;
-  bool failed_on_exception = true;
+  bool reached_ecall = false;
   auto start_time = std::chrono::high_resolution_clock::now();
 
   std::stringstream ss;
@@ -55,11 +55,12 @@ int test_binary(const std::filesystem::directory_entry entry) {
     cpu->oneTick(&ss);
 
     if (cpu->exception.exception == Exception::EnvironmentCallMmode ||
-        cpu->exception.exception == Exception::EnvironmentCallUmode) {
+        cpu->exception.exception == Exception::EnvironmentCallUmode ||
+        cpu->exception.exception == Exception::EnvironmentCallSmode) {
       a0 = cpu->xregs->read(10);
+      reached_ecall = true;
       break;
     } else if (cpu->exception.exception != Exception::None) {
-      failed_on_exception = true;
       break;
     }
 
@@ -78,9 +79,7 @@ int test_binary(const std::filesystem::directory_entry entry) {
   cpu->dump_registers(ss);
 
   if (!timeout) {
-    if (failed_on_exception &&
-        (cpu->exception.exception != Exception::EnvironmentCallMmode &&
-         cpu->exception.exception != Exception::EnvironmentCallUmode)) {
+    if (!reached_ecall) {
       std::println(ss, "Exception: {}",
                    cpu->exception.get_exception_str(cpu->exception.exception));
       std::println("Exception: {}",
