@@ -1,9 +1,45 @@
 #include "bus.h"
 #include "cpu.h"
 #include <cstdint>
-Bus::Bus() { dram = std::vector<uint8_t>(DRAM_SIZE / 8, 0); }
+#include <iostream>
+#include <poll.h>
+#include <unistd.h>
+
+Bus::Bus(bool enable_console)
+    : dram(DRAM_SIZE / 8, 0), console_enabled(enable_console) {}
+
+void Bus::poll_console_input() {
+  if (console_input || console_input_closed)
+    return;
+
+  pollfd input = {STDIN_FILENO, POLLIN, 0};
+  if (poll(&input, 1, 0) <= 0)
+    return;
+
+  if (input.revents & (POLLERR | POLLNVAL)) {
+    console_input_closed = true;
+  } else if (input.revents & (POLLIN | POLLHUP)) {
+    uint8_t byte;
+    const auto count = ::read(STDIN_FILENO, &byte, sizeof(byte));
+    if (count == 1)
+      console_input = byte;
+    else if (count == 0)
+      console_input_closed = true;
+  }
+}
 
 uint64_t Bus::read(uint64_t addr, uint8_t size) {
+  if (console_enabled && size == BYTE &&
+      (addr == CONSOLE_STATUS || addr == CONSOLE_DATA)) {
+    poll_console_input();
+    if (addr == CONSOLE_STATUS)
+      return console_input.has_value();
+
+    const auto byte = console_input.value_or(0);
+    console_input.reset();
+    return byte;
+  }
+
   if ((addr - DRAM_BASE) < DRAM_SIZE) {
     switch (size) {
     case BYTE:
@@ -21,6 +57,11 @@ uint64_t Bus::read(uint64_t addr, uint8_t size) {
 }
 
 void Bus::write(uint64_t addr, uint8_t size, uint64_t value) {
+  if (console_enabled && size == BYTE && addr == CONSOLE_DATA) {
+    std::cout.put(static_cast<char>(value & 0xFF)).flush();
+    return;
+  }
+
   if ((addr - DRAM_BASE) < DRAM_SIZE) {
     switch (size) {
     case BYTE:

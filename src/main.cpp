@@ -27,11 +27,11 @@ int main(int argc, char *argv[]) {
   std::vector<uint8_t> data(static_cast<std::size_t>(size));
   file.read(reinterpret_cast<char *>(data.data()), size);
 
-  std::cout << "Parsed succesfully\n";
+  std::cerr << "Parsed successfully\n";
 
   file.close();
 
-  Bus *bus = new Bus();
+  Bus *bus = new Bus(true);
   Cpu *cpu = new Cpu(bus);
 
   for (unsigned long i = 0; i < data.size(); i++) {
