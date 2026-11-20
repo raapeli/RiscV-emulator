@@ -16,7 +16,7 @@ int main() {
   constexpr uint64_t valid = 1, read = 2, write = 4, execute = 8;
   constexpr uint64_t user = 16, accessed = 64, dirty = 128;
   constexpr uint64_t code = DRAM_BASE + 0x1000;
-  constexpr uint64_t data = DRAM_BASE + 0x2000;
+  constexpr uint64_t data = DRAM_BASE + 0x3000;
   constexpr uint64_t root = DRAM_BASE + 0x4000;
   constexpr uint64_t middle = root + 0x1000;
   constexpr uint64_t leaf = middle + 0x1000;
@@ -84,4 +84,25 @@ int main() {
               regs.load(Address::MEPC) == virtual_code &&
               regs.load(Address::MTVAL) == (1ULL << 39),
           "Noncanonical addresses must fault and report the original address");
+
+  constexpr uint64_t last_parcel = 0xffe;
+  bus.write(code + last_parcel, HALFWORD, 0x0513); // Low half of li a0, 7.
+  bus.write(data, HALFWORD, 0x0070);
+  bus.write(data_pte, DOUBLEWORD, pte(data, execute));
+  require(step(virtual_code + last_parcel).has_value() &&
+              cpu.pc == virtual_data + 2 && cpu.xregs->read(10) == 7,
+          "Split instruction fetch must translate both parcels");
+
+  bus.write(data_pte, DOUBLEWORD, 0);
+  cpu.mode = Mode::SUPERVISOR;
+  cpu.pc = virtual_code + last_parcel;
+  cpu.oneTick();
+  require(regs.load(Address::MCAUSE) == Exception::InstructionPageFault &&
+              regs.load(Address::MEPC) == virtual_code + last_parcel &&
+              regs.load(Address::MTVAL) == virtual_data,
+          "A fault on the second parcel must report its virtual address");
+
+  bus.write(code + last_parcel, HALFWORD, 0x0001); // c.nop
+  require(step(virtual_code + last_parcel).has_value() && cpu.pc == virtual_data,
+          "A compressed instruction must fetch only its own parcel");
 }

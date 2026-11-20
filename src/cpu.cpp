@@ -23,8 +23,9 @@ std::optional<Interrupt::InterruptValue> Cpu::check_pending_interrupt() {
   uint64_t delegated = cregs->load(csr::Address::MIDELEG);
   uint64_t machine_pending = pending & ~delegated;
   bool machine_enabled = mode < Mode::MACHINE ||
-      cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MIE);
-  bool supervisor_enabled = mode < Mode::SUPERVISOR ||
+                         cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::MIE);
+  bool supervisor_enabled =
+      mode < Mode::SUPERVISOR ||
       (mode == Mode::SUPERVISOR &&
        cregs->read_bit_sstatus(csr::Mask::SSTATUSBit::SIE));
 
@@ -94,14 +95,36 @@ void Cpu::oneTick(std::stringstream *debug_str) {
 }
 Cpu::ExecResult Cpu::execute(std::stringstream *ss) {
   exception.access_address = 0;
-  auto physical = resolve_memory_access(pc, WORD, csr::Csr::PMP_EXECUTE);
-  if (!physical) {
-    prev_inst = 0;
-    return std::unexpected(physical.error());
+  prev_inst = 0;
+  if (pc & 1)
+    return std::unexpected(Exception::InstructionAddressMisaligned);
+
+  auto low = resolve_memory_access(pc, HALFWORD, csr::Csr::PMP_EXECUTE);
+  if (!low)
+    return std::unexpected(low.error());
+
+  uint32_t inst = bus->read(*low, HALFWORD);
+  const bool compressed = (inst & 3) != 3;
+  if (!compressed) {
+    // A word starting on a halfword boundary can span two virtual pages.
+    const bool split = (pc & 2) != 0;
+    auto next = resolve_memory_access(
+        split ? pc + 2 : pc, split ? HALFWORD : WORD, csr::Csr::PMP_EXECUTE);
+    if (!next)
+      return std::unexpected(next.error());
+    if (split)
+      inst |= bus->read(*next, HALFWORD) << 16;
+    else
+      inst = bus->read(*next, WORD);
   }
-  uint64_t inst = bus->read(*physical, WORD);
-  auto result = this->executeGeneral(inst, ss);
+
   prev_inst = inst;
+  next_pc = pc + (compressed ? 2 : 4);
+  auto decoded = compressed ? expand_compressed(inst) : std::optional{inst};
+
+  ExecResult result = std::unexpected(Exception::IllegalInstruction);
+  if (decoded)
+    result = executeGeneral(*decoded, ss);
   if (!result.has_value()) {
     if (result.error() == Exception::IllegalInstruction) {
       if (ss)
@@ -110,7 +133,7 @@ Cpu::ExecResult Cpu::execute(std::stringstream *ss) {
     }
     return result;
   }
-  this->pc += 4;
+  pc = next_pc;
 
   return result;
 }

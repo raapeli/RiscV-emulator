@@ -405,11 +405,8 @@ Cpu::ExecResult Cpu::exec_JAL(uint64_t inst, std::stringstream *ss) {
   DB(ss, inst, "jal");
   int64_t offset = IMM_J(inst);
   uint64_t addr = this->pc + offset;
-  if (addr & 3)
-    return std::unexpected(Exception::InstructionAddressMisaligned);
-
-  this->xregs->write(RD(inst), this->pc + 4);
-  this->pc = addr - 4; // -4 because execute() loop adds +4
+  this->xregs->write(RD(inst), next_pc);
+  next_pc = addr;
   return {};
 }
 
@@ -417,11 +414,8 @@ Cpu::ExecResult Cpu::exec_JALR(uint64_t inst, std::stringstream *ss) {
   DB(ss, inst, "jalr");
   int64_t imm = IMM_I(inst);
   uint64_t addr = (this->xregs->read(RS1(inst)) + imm) & ~1ULL;
-  if (addr & 3)
-    return std::unexpected(Exception::InstructionAddressMisaligned);
-
-  this->xregs->write(RD(inst), this->pc + 4);
-  this->pc = addr - 4; // -4 because execute() loop adds +4
+  this->xregs->write(RD(inst), next_pc);
+  next_pc = addr;
   return {};
 }
 
@@ -460,12 +454,8 @@ Cpu::ExecResult Cpu::exec_BRANCH(uint64_t inst, std::stringstream *ss) {
   default:
     return std::unexpected(Exception::IllegalInstruction);
   }
-  if (take) {
-    uint64_t addr = this->pc + imm;
-    if (addr & 3)
-      return std::unexpected(Exception::InstructionAddressMisaligned);
-    this->pc = addr - 4; // -4 because execute() loop adds +4
-  }
+  if (take)
+    next_pc = pc + imm;
   return {};
 }
 
@@ -509,7 +499,7 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
       if (mpp != Mode::USER && mpp != Mode::SUPERVISOR && mpp != Mode::MACHINE)
         return std::unexpected(Exception::IllegalInstruction);
 
-      this->pc = (cregs->load(csr::Address::MEPC) & ~3ULL) - 4;
+      next_pc = cregs->load(csr::Address::MEPC) & ~1ULL;
       this->mode = static_cast<Mode>(mpp);
       if (this->mode != Mode::MACHINE)
         cregs->write_bit_mstatus(csr::Mask::MSTATUSBit::MPRV, 0);
@@ -528,8 +518,7 @@ Cpu::ExecResult Cpu::exec_SYSTEM(uint64_t inst, std::stringstream *ss) {
            cregs->read_bit_mstatus(csr::Mask::MSTATUSBit::TSR)))
         return std::unexpected(Exception::IllegalInstruction);
 
-      // IALIGN is 32. The execute loop adds 4 after the return.
-      this->pc = (cregs->load(csr::Address::SEPC) & ~3ULL) - 4;
+      next_pc = cregs->load(csr::Address::SEPC) & ~1ULL;
       this->mode = cregs->read_bit_sstatus(csr::Mask::SSTATUSBit::SPP)
                        ? Mode::SUPERVISOR
                        : Mode::USER;

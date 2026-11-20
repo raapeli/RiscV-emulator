@@ -7,6 +7,7 @@ A Risc-V emulator built in modern C++23.
 ## Features
 
 - [X] RV32I/RV64I
+- [X] RV64 compressed integer instructions
 - [X] Exceptions 
 - [X] Privileged ISA
 - [X] CSRs

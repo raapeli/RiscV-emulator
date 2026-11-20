@@ -41,8 +41,6 @@
 
 #ifdef DEBUG
 
-#include <print>
-
 #define DB(ss, inst, name)                                                     \
   do {                                                                         \
     if (ss) {                                                                  \
@@ -108,13 +106,15 @@ public:
 
 private:
   std::unordered_set<uint64_t> reservations;
+  uint64_t next_pc;
 
   using AddressResult = std::expected<uint64_t, Exception::ExceptionValue>;
   AddressResult resolve_memory_access(uint64_t addr, uint8_t size,
                                       uint8_t permissions);
-  bool permits_physical_access(uint64_t addr, uint8_t size,
-                               uint8_t permissions, Mode effective_mode) const;
+  bool permits_physical_access(uint64_t addr, uint8_t size, uint8_t permissions,
+                               Mode effective_mode) const;
   ExecResult executeGeneral(uint64_t inst, std::stringstream *ss = nullptr);
+  static std::optional<uint32_t> expand_compressed(uint16_t inst);
 
   ExecResult exec_OP_IMM_32(uint64_t inst, std::stringstream *ss);
   ExecResult exec_OP_IMM(uint64_t inst, std::stringstream *ss);

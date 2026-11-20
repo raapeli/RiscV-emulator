@@ -17,11 +17,12 @@ add_executable(RiscV
   src/csrs.cpp
   src/interrupt.cpp
   src/sv39.cpp
+  src/compressed.cpp
   src/instructions.cpp
 )
 
 add_library(emulator src/cpu.cpp src/bus.cpp src/csrs.cpp src/exception.cpp
-            src/interrupt.cpp src/instructions.cpp src/sv39.cpp)
+            src/interrupt.cpp src/instructions.cpp src/sv39.cpp src/compressed.cpp)
 target_include_directories(emulator PUBLIC include)
 
 target_include_directories(RiscV

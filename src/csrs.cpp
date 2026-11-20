@@ -16,7 +16,7 @@ constexpr uint8_t PMP_NAPOT = 0x18;
 constexpr uint8_t PMP_LOCK = 0x80;
 
 Csr::Csr() {
-  regs[Address::MISA] = Misa::XLEN_64 | Misa::SUPERVISOR | Misa::USER;
+  regs[Address::MISA] = Misa::XLEN_64 | Misa::C_EXT | Misa::SUPERVISOR | Misa::USER;
   regs[Address::MSTATUS] = STATUS_XLEN_64;
 };
 
@@ -61,8 +61,8 @@ void Csr::write(uint64_t addr, uint64_t value) {
     break;
   }
   case Address::MISA:
-    // Instruction alignment stays at four bytes until C is implemented.
-    regs[Address::MISA] = value & ~Misa::C_EXT;
+    // Compressed instructions and two-byte instruction alignment are fixed.
+    regs[Address::MISA] = value | Misa::C_EXT;
     break;
   case Address::MIDELEG:
     regs[Address::MIDELEG] = value & Mask::SUPERVISOR_INTERRUPTS;
