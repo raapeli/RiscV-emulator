@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_path(MPFR_INCLUDE_DIR NAMES mpfr.h REQUIRED)
+find_library(MPFR_LIBRARY NAMES mpfr REQUIRED)
+
 add_compile_options(-ggdb3 -Wall -Wextra -Wpedantic -fcolor-diagnostics
       -DDEBUG -std=c++23)
 add_executable(RiscV
@@ -31,6 +34,11 @@ target_include_directories(RiscV
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+foreach(target RiscV emulator)
+  target_include_directories(${target} PRIVATE ${MPFR_INCLUDE_DIR})
+  target_link_libraries(${target} PRIVATE ${MPFR_LIBRARY})
+endforeach()
 
 enable_testing()
 add_subdirectory(tests)

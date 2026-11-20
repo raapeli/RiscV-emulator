@@ -18,7 +18,7 @@ A Risc-V emulator built in modern C++23.
 
 ### Requirements
 
-```cmake clang```
+CMake, Clang, and the MPFR development headers and library (`mpfr` on Arch).
 
 ```
 $ git clone --recurse-submodules https://github.com/raapeli/RiscV-emulator.git

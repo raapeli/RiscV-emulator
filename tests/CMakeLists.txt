@@ -9,16 +9,19 @@ add_executable(test_cpu test_riscv.cpp)
 add_executable(test_bus_bounds test_bus_bounds.cpp)
 add_executable(test_pmp test_pmp.cpp)
 add_executable(test_sv39 test_sv39.cpp)
+add_executable(test_floating_rounding test_floating_rounding.cpp)
 target_link_libraries(test_no_jumps PRIVATE emulator)
 target_link_libraries(test_cpu PRIVATE emulator)
 target_link_libraries(test_bus_bounds PRIVATE emulator)
 target_link_libraries(test_pmp PRIVATE emulator)
 target_link_libraries(test_sv39 PRIVATE emulator)
+target_link_libraries(test_floating_rounding PRIVATE emulator)
 
 add_test(NAME integer_instruction_test COMMAND test_no_jumps)
 add_test(NAME bus_bounds_test COMMAND test_bus_bounds)
 add_test(NAME pmp_test COMMAND test_pmp)
 add_test(NAME sv39_test COMMAND test_sv39)
+add_test(NAME floating_rounding_test COMMAND test_floating_rounding)
 
 add_test(NAME rv64ui_test
  COMMAND $<TARGET_FILE:test_cpu> "../../testbins/rv64ui/bin/"
