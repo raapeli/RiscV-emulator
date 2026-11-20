@@ -48,6 +48,24 @@ Keep the generated `dumped` directory alongside each suite's `bin` directory.
 The runner uses those symbol addresses to load tests at their link address and
 read results reported by guest trap handlers through `tohost`.
 
+### Linux and BusyBox integration test
+
+Set `LINUX_BOOT_TEST_IMAGES` to opt in to booting real Linux images. The
+directory must contain `fw_jump.bin`, `Image`, and `initramfs.cpio`. The
+initramfs must print `BusyBox shell ready` from `/init` and start an
+interactive shell on the serial console. The test uses Python 3 and a Release
+build is recommended for the 180-second boot and command timeout.
+
+```sh
+cmake -S . -B build/linux-integration -DCMAKE_CXX_COMPILER=clang++ \
+  -DCMAKE_BUILD_TYPE=Release -DLINUX_BOOT_TEST_IMAGES="$PWD/build/linux-boot"
+cmake --build build/linux-integration --target RiscV
+ctest --test-dir build/linux-integration -R '^linux_busybox_boot_test$' --output-on-failure
+```
+
+The test sends a shell command over the UART and checks its output. The serial
+log is saved to `build/linux-integration/tests/linux_busybox_boot.log`.
+
 ## Usage
 
 Run the program RiscV with an argument to a RiscV binary with no headers.

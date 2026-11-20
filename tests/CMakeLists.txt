@@ -26,6 +26,9 @@ add_test(NAME sv39_test COMMAND test_sv39)
 add_test(NAME floating_rounding_test COMMAND test_floating_rounding)
 add_test(NAME interrupt_devices_test COMMAND test_interrupt_devices)
 
+set(LINUX_BOOT_TEST_IMAGES "" CACHE PATH
+    "Directory containing fw_jump.bin, Image and initramfs.cpio for the Linux boot test")
+
 find_program(RISCV_GCC riscv64-elf-gcc)
 find_program(RISCV_OBJCOPY riscv64-elf-objcopy)
 find_package(Python3 QUIET COMPONENTS Interpreter)
@@ -47,6 +50,25 @@ if(RISCV_GCC AND RISCV_OBJCOPY AND Python3_Interpreter_FOUND)
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_linux_boot_loader.py"
             $<TARGET_FILE:RiscV> "${boot_probe_bin}"
   )
+endif()
+
+if(LINUX_BOOT_TEST_IMAGES)
+  if(NOT Python3_Interpreter_FOUND)
+    message(FATAL_ERROR "The Linux boot integration test requires Python 3")
+  endif()
+  foreach(image fw_jump.bin Image initramfs.cpio)
+    set(image_path "${LINUX_BOOT_TEST_IMAGES}/${image}")
+    if(NOT EXISTS "${image_path}" OR IS_DIRECTORY "${image_path}")
+      message(FATAL_ERROR "Missing Linux boot test image: ${image_path}")
+    endif()
+  endforeach()
+
+  add_test(NAME linux_busybox_boot_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_linux_busybox.py"
+            $<TARGET_FILE:RiscV> "${LINUX_BOOT_TEST_IMAGES}"
+            "${CMAKE_CURRENT_BINARY_DIR}/linux_busybox_boot.log"
+  )
+  set_tests_properties(linux_busybox_boot_test PROPERTIES TIMEOUT 190)
 endif()
 
 add_test(NAME rv64ui_test
