@@ -63,16 +63,20 @@ firmware in machine mode with hart ID zero and the DTB address in `a0` and `a1`.
 
 The firmware, kernel, initramfs, and DTB start at `0x80000000`, `0x80200000`,
 `0x84000000`, and `0x87e00000` respectively. The supplied DTB is passed through
-as-is. Linux mode exposes a single-hart CLINT at `0x02000000` and a PLIC at
-`0x0c000000`. The timer advances once per emulator tick. The serial UART and
-Linux boot artifacts are still pending.
+as-is. Linux mode exposes a single-hart CLINT at `0x02000000`, a PLIC at
+`0x0c000000`, and a byte-wide 16550 UART at `0x10000000` wired to PLIC source
+10. The timer advances once per emulator tick. The UART connects to standard
+input and output and uses the host terminal's line mode.
 
-Other machine configurations can attach either interrupt device independently
-by supplying its MMIO base through `Bus::InterruptMap`.
+Other machine configurations can attach these devices independently through
+`Bus::DeviceMap`. The UART models the divisor latch, receive FIFO, loopback,
+and receive and transmit interrupts. Transmission is immediate and the receive
+FIFO timeout is measured in emulator ticks.
 
 ### Polled console
 
-The emulator connects guest byte loads and stores to standard input and output.
+In flat-binary mode, the emulator connects guest byte loads and stores to
+standard input and output.
 
 | Address | Guest operation | Behavior |
 | --- | --- | --- |

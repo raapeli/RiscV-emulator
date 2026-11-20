@@ -18,7 +18,8 @@ constexpr uint64_t LINUX_RAM_SIZE = 128 * 1024 * 1024;
 constexpr uint64_t LINUX_KERNEL = 0x80200000;
 constexpr uint64_t LINUX_INITRD = 0x84000000;
 constexpr uint64_t LINUX_DTB = 0x87e00000;
-constexpr Bus::InterruptMap LINUX_INTERRUPTS{0x02000000, 0x0c000000};
+constexpr Bus::DeviceMap LINUX_DEVICES{
+    0x02000000, 0x0c000000, Bus::UartMapping{0x10000000, 10}};
 
 struct BootImage {
   std::string_view option;
@@ -101,7 +102,7 @@ int run_linux(int argc, char *argv[]) {
     image.bytes = std::move(*bytes);
   }
 
-  Bus bus(true, LINUX_RAM_BASE, LINUX_RAM_SIZE, LINUX_INTERRUPTS);
+  Bus bus(true, LINUX_RAM_BASE, LINUX_RAM_SIZE, LINUX_DEVICES);
   for (const auto &image : images)
     std::ranges::copy(image.bytes,
                       bus.dram.begin() + (image.address - bus.ram_base));

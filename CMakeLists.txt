@@ -21,6 +21,7 @@ add_executable(RiscV
   src/interrupt.cpp
   src/devices/clint.cpp
   src/devices/plic.cpp
+  src/devices/uart.cpp
   src/sv39.cpp
   src/compressed.cpp
   src/floating.cpp
@@ -29,7 +30,8 @@ add_executable(RiscV
 
 add_library(emulator src/cpu.cpp src/bus.cpp src/csrs.cpp src/exception.cpp
             src/interrupt.cpp src/instructions.cpp src/sv39.cpp src/compressed.cpp
-            src/floating.cpp src/devices/clint.cpp src/devices/plic.cpp)
+            src/floating.cpp src/devices/clint.cpp src/devices/plic.cpp
+            src/devices/uart.cpp)
 target_include_directories(emulator PUBLIC include)
 
 target_include_directories(RiscV

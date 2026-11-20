@@ -28,7 +28,7 @@ void require(bool condition, const char *message) {
 }
 
 void test_clint() {
-  Bus bus(false, DRAM_BASE, DRAM_SIZE, {CLINT, std::nullopt});
+  Bus bus(false, DRAM_BASE, DRAM_SIZE, {CLINT, std::nullopt, std::nullopt});
   require(bus.clint() && !bus.plic() && !bus.contains_mmio_access(PLIC, WORD, false),
           "CLINT can be installed independently");
   Cpu cpu(&bus);
@@ -84,7 +84,7 @@ void test_clint() {
 }
 
 void test_plic() {
-  Bus bus(false, DRAM_BASE, DRAM_SIZE, {std::nullopt, PLIC});
+  Bus bus(false, DRAM_BASE, DRAM_SIZE, {std::nullopt, PLIC, std::nullopt});
   require(bus.plic() && !bus.clint() && !bus.contains_mmio_access(MTIME, DOUBLEWORD, false),
           "PLIC can be installed independently");
   Cpu cpu(&bus);

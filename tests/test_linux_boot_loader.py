@@ -12,6 +12,14 @@ def expect_failure(command, message):
         raise RuntimeError(f"Expected {message!r}, got {result}")
 
 
+def expect_guest_output(guest, expected, check):
+    if not select.select([guest.stdout], [], [], 5)[0]:
+        raise RuntimeError(f"Timed out waiting for {check}")
+    result = os.read(guest.stdout.fileno(), 1)
+    if result != expected:
+        raise RuntimeError(f"{check} failed: {result!r}")
+
+
 def main():
     emulator, firmware = sys.argv[1:]
     with tempfile.TemporaryDirectory() as directory:
@@ -25,14 +33,16 @@ def main():
         command = [emulator, "--linux", "--initrd", initrd, "--kernel", kernel,
                    "--firmware", firmware, "--dtb", dtb]
 
-        with subprocess.Popen(command, stdin=subprocess.DEVNULL,
+        with subprocess.Popen(command, stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE) as guest:
             try:
-                if not select.select([guest.stdout], [], [], 5)[0]:
-                    raise RuntimeError("Timed out waiting for the firmware probe")
-                result = os.read(guest.stdout.fileno(), 1)
-                if result != b"P":
-                    raise RuntimeError(f"Firmware handoff check failed: {result!r}")
+                expect_guest_output(guest, b"P", "firmware handoff and UART setup")
+                guest.stdin.write(b"\0")
+                guest.stdin.flush()
+                expect_guest_output(guest, b"Q", "polled UART input")
+                guest.stdin.write(b"X")
+                guest.stdin.flush()
+                expect_guest_output(guest, b"R", "UART interrupt delivery")
             finally:
                 if guest.poll() is None:
                     guest.terminate()

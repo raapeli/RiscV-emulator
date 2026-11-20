@@ -6,12 +6,16 @@
 #include <unistd.h>
 
 Bus::Bus(bool enable_console, uint64_t base, uint64_t size,
-         InterruptMap interrupts)
+         DeviceMap devices)
     : ram_base(base), dram(size, 0), console_enabled(enable_console) {
-  if (interrupts.clint)
-    clint_device.emplace(*interrupts.clint);
-  if (interrupts.plic)
-    plic_device.emplace(*interrupts.plic);
+  if (devices.clint)
+    clint_device.emplace(*devices.clint);
+  if (devices.plic)
+    plic_device.emplace(*devices.plic);
+  if (devices.uart) {
+    uart_device.emplace(devices.uart->base);
+    uart_plic_source = devices.uart->plic_source;
+  }
 }
 
 Clint *Bus::clint() { return clint_device ? &*clint_device : nullptr; }
@@ -27,23 +31,24 @@ bool Bus::contains_ram_access(uint64_t addr, uint8_t size) const {
 }
 
 bool Bus::contains_console_access(uint64_t addr, uint8_t size, bool write) const {
-  return console_enabled && size == BYTE &&
+  return console_enabled && !uart_device && size == BYTE &&
          (addr == CONSOLE_DATA || (!write && addr == CONSOLE_STATUS));
 }
 
 bool Bus::contains_mmio_access(uint64_t addr, uint8_t size, bool write) const {
   return contains_console_access(addr, size, write) ||
          (clint_device && clint_device->contains_access(addr, size)) ||
-         (plic_device && plic_device->contains_access(addr, size));
+         (plic_device && plic_device->contains_access(addr, size)) ||
+         (uart_device && uart_device->contains_access(addr, size));
 }
 
-void Bus::poll_console_input() {
-  if (console_input || console_input_closed)
-    return;
+std::optional<uint8_t> Bus::read_console_input() {
+  if (console_input_closed)
+    return std::nullopt;
 
   pollfd input = {STDIN_FILENO, POLLIN, 0};
   if (poll(&input, 1, 0) <= 0)
-    return;
+    return std::nullopt;
 
   if (input.revents & (POLLERR | POLLNVAL)) {
     console_input_closed = true;
@@ -51,10 +56,31 @@ void Bus::poll_console_input() {
     uint8_t byte;
     const auto count = ::read(STDIN_FILENO, &byte, sizeof(byte));
     if (count == 1)
-      console_input = byte;
-    else if (count == 0)
+      return byte;
+    if (count == 0)
       console_input_closed = true;
   }
+  return std::nullopt;
+}
+
+void Bus::update_uart_interrupt() {
+  if (plic_device)
+    plic_device->set_external_level(uart_plic_source,
+                                    uart_device->interrupt_pending());
+}
+
+void Bus::tick_uart() {
+  if (!uart_device)
+    return;
+  uart_device->tick();
+  // Avoid a host syscall on every instruction while still polling an idle UART.
+  constexpr unsigned INPUT_POLL_INTERVAL = 256;
+  if (uart_poll_ticks == 0 && console_enabled && uart_device->can_receive()) {
+    if (auto byte = read_console_input())
+      uart_device->receive(*byte);
+  }
+  uart_poll_ticks = (uart_poll_ticks + 1) % INPUT_POLL_INTERVAL;
+  update_uart_interrupt();
 }
 
 uint64_t Bus::read(uint64_t addr, uint8_t size) {
@@ -62,8 +88,14 @@ uint64_t Bus::read(uint64_t addr, uint8_t size) {
     return clint_device->read(addr, size);
   if (plic_device && plic_device->contains_access(addr, size))
     return plic_device->read(addr, size);
+  if (uart_device && uart_device->contains_access(addr, size)) {
+    const uint64_t value = uart_device->read(addr, size);
+    update_uart_interrupt();
+    return value;
+  }
   if (contains_console_access(addr, size, false)) {
-    poll_console_input();
+    if (!console_input)
+      console_input = read_console_input();
     if (addr == CONSOLE_STATUS)
       return console_input.has_value();
 
@@ -95,6 +127,12 @@ void Bus::write(uint64_t addr, uint8_t size, uint64_t value) {
   }
   if (plic_device && plic_device->contains_access(addr, size)) {
     plic_device->write(addr, size, value);
+    return;
+  }
+  if (uart_device && uart_device->contains_access(addr, size)) {
+    if (auto byte = uart_device->write(addr, size, value); byte && console_enabled)
+      std::cout.put(static_cast<char>(*byte)).flush();
+    update_uart_interrupt();
     return;
   }
   if (contains_console_access(addr, size, true)) {

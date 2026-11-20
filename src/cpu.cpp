@@ -76,6 +76,7 @@ void Cpu::oneTick(std::stringstream *debug_str) {
     cregs->write(csr::Address::TIME, clint->time());
     pending |= clint->pending_interrupts();
   }
+  bus->tick_uart();
   if (auto *plic = bus->plic())
     pending |= plic->pending_interrupts();
   cregs->set_platform_pending(pending);
