@@ -85,7 +85,7 @@ def dtb_properties(blob):
     raise RuntimeError("Missing DTB end token")
 
 
-def check_generated_dtb(blob, initrd_size, has_disk=False):
+def check_generated_dtb(blob, initrd_size, has_disk=False, ram_size=128 << 20):
     props = dtb_properties(blob)
     cpu = "/cpus/cpu@0"
     cpu_intc = cpu + "/interrupt-controller"
@@ -98,7 +98,7 @@ def check_generated_dtb(blob, initrd_size, has_disk=False):
         ("/chosen", "linux,initrd-start"): struct.pack(">Q", 0x84000000),
         ("/chosen", "linux,initrd-end"): struct.pack(">Q", 0x84000000 + initrd_size),
         ("/aliases", "serial0"): uart.encode() + b"\0",
-        ("/memory@80000000", "reg"): struct.pack(">QQ", 0x80000000, 0x08000000),
+        ("/memory@80000000", "reg"): struct.pack(">QQ", 0x80000000, ram_size),
         ("/cpus", "timebase-frequency"): struct.pack(">I", 10000000),
         (cpu, "reg"): struct.pack(">I", 0),
         (cpu, "mmu-type"): b"riscv,sv39\0",
@@ -150,6 +150,9 @@ def main():
 
         generated = read_guest_dtb(command)
         check_generated_dtb(generated, len(initrd_contents))
+        smaller_ram = command + ["--ram-size", "127"]
+        check_generated_dtb(read_guest_dtb(smaller_ram), len(initrd_contents),
+                            ram_size=127 << 20)
         custom = generated.replace(b"console=ttyS0", b"console=ttyS1")
         dtb.write_bytes(custom)
         if read_guest_dtb(command + ["--dtb", dtb]) != custom:
@@ -164,6 +167,11 @@ def main():
 
         expect_failure(command[:-2], b"Missing Linux boot argument: --firmware")
         expect_failure(command + ["--kernel", kernel], b"Invalid Linux boot argument")
+        expect_failure(smaller_ram + ["--ram-size", "128"],
+                       b"Invalid Linux boot argument: --ram-size")
+        expect_failure(command + ["--ram-size", "126"], b"at least 127 MiB")
+        for invalid_size in ("-128", "128M", "18446744073709551615"):
+            expect_failure(command + ["--ram-size", invalid_size], b"Invalid --ram-size")
 
         too_large = path / "too-large.bin"
         with too_large.open("wb") as image:
@@ -171,6 +179,10 @@ def main():
         expect_failure(command[:-1] + [too_large],
                        b"--firmware image exceeds its guest RAM region")
         expect_failure(command + ["--dtb", too_large],
+                       b"--dtb image exceeds its guest RAM region")
+        with too_large.open("wb") as image:
+            image.truncate((1 << 20) + 1)
+        expect_failure(smaller_ram + ["--dtb", too_large],
                        b"--dtb image exceeds its guest RAM region")
 
         initrd.write_bytes(b"")

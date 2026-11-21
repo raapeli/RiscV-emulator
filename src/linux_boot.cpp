@@ -62,7 +62,8 @@ private:
 
 } // namespace
 
-std::vector<uint8_t> make_dtb(uint64_t initrd_size, bool has_disk) {
+std::vector<uint8_t> make_dtb(uint64_t ram_size, uint64_t initrd_size,
+                              bool has_disk) {
   constexpr uint32_t CPU_INTC_PHANDLE = 1;
   constexpr uint32_t PLIC_PHANDLE = 2;
   constexpr char ISA_EXTENSIONS[] = "i\0m\0a\0f\0d\0c\0zicsr\0zifencei";
@@ -91,7 +92,7 @@ std::vector<uint8_t> make_dtb(uint64_t initrd_size, bool has_disk) {
 
   dt.begin_node(std::format("memory@{:x}", RAM_BASE).c_str());
   dt.string("device_type", "memory");
-  dt.region(RAM_BASE, RAM_SIZE);
+  dt.region(RAM_BASE, ram_size);
   dt.end_node();
 
   dt.begin_node("cpus");
