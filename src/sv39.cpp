@@ -61,16 +61,15 @@ Cpu::AddressResult Cpu::resolve_memory_access(uint64_t addr, uint8_t size,
                           : store ? Exception::StoreAmoPageFault
                                   : Exception::LoadPageFault;
 
-  const uint64_t status = cregs->load(csr::Address::MSTATUS);
+  const uint64_t status = cregs->machine_status();
   Mode effective_mode = mode;
   if (mode == Mode::MACHINE && !fetch &&
       (status & (1ULL << static_cast<unsigned>(csr::Mask::MSTATUSBit::MPRV)))) {
-    effective_mode = static_cast<Mode>(
-        cregs->read_bits(csr::Address::MSTATUS, csr::Mask::MPP_HIGH_BIT,
-                         csr::Mask::MPP_LOW_BIT));
+    effective_mode =
+        static_cast<Mode>((status >> csr::Mask::MPP_LOW_BIT) & 3);
   }
 
-  const uint64_t satp = cregs->load(csr::Address::SATP);
+  const uint64_t satp = cregs->satp();
   if (effective_mode == Mode::MACHINE ||
       (satp >> csr::Satp::MODE_SHIFT) == csr::Satp::BARE) {
     if (permits_physical_access(addr, size, permissions, effective_mode))

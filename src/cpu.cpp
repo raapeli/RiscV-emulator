@@ -69,11 +69,11 @@ void Cpu::start() {
 void Cpu::oneTick(std::stringstream *debug_str) {
 
   // Tick time
-  cregs->write(csr::Address::CYCLE, cregs->load(csr::Address::CYCLE) + 1);
+  cregs->advance_cycle();
   uint64_t pending = 0;
   if (auto *clint = bus->clint()) {
     clint->tick();
-    cregs->write(csr::Address::TIME, clint->time());
+    cregs->set_time(clint->time());
     pending |= clint->pending_interrupts();
   }
   bus->tick_uart();

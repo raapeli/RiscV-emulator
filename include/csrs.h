@@ -207,6 +207,12 @@ public:
   uint64_t load(uint64_t addr);
   uint64_t value_for_update(uint64_t addr, uint64_t observed) const;
   void write(uint64_t addr, uint64_t value);
+
+  uint64_t machine_status() const { return regs[Address::MSTATUS]; }
+  uint64_t satp() const { return regs[Address::SATP]; }
+  void advance_cycle() { ++regs[Address::CYCLE]; }
+  void set_time(uint64_t value) { regs[Address::TIME] = value; }
+
   void set_platform_pending(uint64_t pending);
   bool floating_enabled() const;
   void mark_floating_dirty();

@@ -98,13 +98,16 @@ void test_clint() {
   bus.write(MTIMECMP, WORD, 12);
   require(bus.read(MTIMECMP, DOUBLEWORD) == 12, "CLINT split compare writes failed");
   regs.write(Address::MIP, Mask::MTIP);
+  regs.write(Address::CYCLE, UINT64_MAX);
   cpu.oneTick();
   require(cpu.pc == DRAM_BASE + 4 && regs.load(Address::TIME) == 11 &&
+              regs.load(Address::CYCLE) == 0 &&
               !(regs.load(Address::MIP) & Mask::MTIP),
-          "Timer fired before the compare deadline");
+          "A CPU tick must advance the counters without an early timer interrupt");
 
   cpu.oneTick();
   require(cpu.pc == handler + 4 && regs.load(Address::TIME) == 12 &&
+              regs.load(Address::CYCLE) == 1 &&
               regs.load(Address::MEPC) == DRAM_BASE + 4 &&
               regs.load(Address::MCAUSE) == (INTERRUPT | 7),
           "CPU did not take the machine timer interrupt at the deadline");
