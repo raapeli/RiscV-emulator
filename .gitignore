@@ -3,11 +3,12 @@
 !*.cpp
 !*.h
 !CMakeLists.txt
+!CMakePresets.json
 build/
 !.gitignore
 !*.md
 !.gitmodules
-!MakeTests.cmake
+!tests/IsaTests.cmake
 !link.ld
 !examples/console-shell/start.S
 !examples/console-shell/shell.c

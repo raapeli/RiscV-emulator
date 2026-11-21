@@ -58,7 +58,7 @@
   } while (0)
 
 #else
-#define DB(ss, inst, x) ((void)0)
+#define DB(ss, inst, name) ((void)sizeof(ss))
 #endif // DEBUG
 
 #define REGISTER_COUNT 32

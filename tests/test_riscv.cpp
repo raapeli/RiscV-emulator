@@ -13,6 +13,7 @@
 #include <print>
 #include <sstream>
 #include <string>
+#include <vector>
 
 constexpr uint64_t EXIT_SYSCALL = 93;
 
@@ -68,9 +69,9 @@ std::size_t load_into_dram(const char *path, Bus *bus) {
   return data.size();
 }
 
-int test_binary(const std::filesystem::directory_entry entry) {
+int test_binary(const std::filesystem::path &binary) {
 
-  const auto symbols = read_image_symbols(entry.path());
+  const auto symbols = read_image_symbols(binary);
   const uint64_t base = symbols.start.value_or(DRAM_BASE);
   if ((base & 3) || base > UINT64_MAX - (DRAM_SIZE - 1)) {
     std::cerr << "Invalid image start address\n";
@@ -78,7 +79,7 @@ int test_binary(const std::filesystem::directory_entry entry) {
   }
 
   Bus *bus = new Bus(false, base);
-  const auto image_size = load_into_dram(entry.path().c_str(), bus);
+  const auto image_size = load_into_dram(binary.c_str(), bus);
   if (image_size == 0) {
     std::cerr << "Dram loading failed\n";
     return -1;
@@ -175,7 +176,7 @@ int test_binary(const std::filesystem::directory_entry entry) {
 
   std::filesystem::create_directories("./logs");
   std::string file_path =
-      std::format("./logs/{}.log", entry.path().stem().c_str());
+      std::format("./logs/{}.log", binary.stem().c_str());
 
   std::ofstream of = std::ofstream(file_path);
   of << ss.str();
@@ -186,37 +187,38 @@ int test_binary(const std::filesystem::directory_entry entry) {
   return -1;
 }
 
-int test_bins(std::string directory) {
-
-  int total = 0;
+int test_bins(const std::vector<std::filesystem::path> &binaries) {
   int passed = 0;
   int failed = 0;
 
-  for (auto entry : std::filesystem::directory_iterator(directory)) {
-    std::println("Running: {}", entry.path().c_str());
-    if (std::filesystem::is_regular_file(entry) &&
-        entry.path().extension() == ".bin") {
-
-      total += 1;
-
-      if (test_binary(entry) == 1) {
-        std::println("Pass");
-        passed += 1;
-      } else {
-        std::println("Fail");
-        failed += 1;
-      }
+  for (const auto &binary : binaries) {
+    std::println("Running: {}", binary.c_str());
+    if (test_binary(binary) == 1) {
+      std::println("Pass");
+      passed += 1;
+    } else {
+      std::println("Fail");
+      failed += 1;
     }
   }
-  std::println("Passed: {} / {}", passed, total);
-  return failed;
+  std::println("Passed: {} / {}", passed, binaries.size());
+  return failed != 0;
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 2) {
-    std::println("Error: No path passed");
-    return -1;
+  std::vector<std::filesystem::path> binaries;
+  if (argc == 2 && std::filesystem::is_directory(argv[1])) {
+    for (const auto &entry : std::filesystem::directory_iterator(argv[1])) {
+      if (entry.is_regular_file() && entry.path().extension() == ".bin")
+        binaries.push_back(entry.path());
+    }
+  } else {
+    binaries.assign(argv + 1, argv + argc);
+  }
+  if (binaries.empty()) {
+    std::println(stderr, "Usage: test_cpu DIRECTORY | BINARY [BINARY ...]");
+    return 1;
   }
 
-  return test_bins(argv[1]);
+  return test_bins(binaries);
 }

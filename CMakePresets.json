@@ -1,0 +1,41 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "clang++" }
+    },
+    {
+      "name": "debug",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "relwithdebinfo",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "debug", "jobs": 4 },
+    { "name": "release", "configurePreset": "release", "jobs": 4 },
+    { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo", "jobs": 4 }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": { "outputOnFailure": true }
+    },
+    { "name": "debug", "configurePreset": "debug", "inherits": "test-base" },
+    { "name": "release", "configurePreset": "release", "inherits": "test-base" },
+    { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo", "inherits": "test-base" }
+  ]
+}

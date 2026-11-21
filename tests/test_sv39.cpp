@@ -5,6 +5,8 @@
 
 using csr::Address;
 
+constexpr uint64_t virtual_code = 0x4000;
+
 static void require(bool condition, const char *message) {
   if (!condition) {
     std::cerr << message << '\n';
@@ -20,7 +22,6 @@ int main() {
   constexpr uint64_t root = DRAM_BASE + 0x4000;
   constexpr uint64_t middle = root + 0x1000;
   constexpr uint64_t leaf = middle + 0x1000;
-  constexpr uint64_t virtual_code = 0x4000;
   constexpr uint64_t virtual_data = 0x5000;
   constexpr uint64_t data_pte = leaf + 5 * 8;
   constexpr uint64_t unknown_mode = 9ULL << csr::Satp::MODE_SHIFT;

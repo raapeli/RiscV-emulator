@@ -4,7 +4,8 @@ project(RiscV
 )
 
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_COMPILER clang++)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_path(MPFR_INCLUDE_DIR NAMES mpfr.h REQUIRED)
@@ -12,24 +13,13 @@ find_library(MPFR_LIBRARY NAMES mpfr REQUIRED)
 find_path(LIBFDT_INCLUDE_DIR NAMES libfdt.h REQUIRED)
 find_library(LIBFDT_LIBRARY NAMES fdt REQUIRED)
 
-add_compile_options(-ggdb3 -Wall -Wextra -Wpedantic -fcolor-diagnostics
-      -DDEBUG -std=c++23)
+add_compile_options(-Wall -Wextra -Wpedantic
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
+    $<$<CONFIG:RelWithDebInfo>:-fno-omit-frame-pointer>)
+add_compile_definitions($<$<CONFIG:Debug>:DEBUG>)
 add_executable(RiscV
   src/main.cpp
   src/linux_boot.cpp
-  src/bus.cpp
-  src/cpu.cpp
-  src/exception.cpp
-  src/csrs.cpp
-  src/interrupt.cpp
-  src/devices/clint.cpp
-  src/devices/plic.cpp
-  src/devices/uart.cpp
-  src/devices/virtio_blk.cpp
-  src/sv39.cpp
-  src/compressed.cpp
-  src/floating.cpp
-  src/instructions.cpp
 )
 
 add_library(emulator src/cpu.cpp src/bus.cpp src/csrs.cpp src/exception.cpp
@@ -37,19 +27,20 @@ add_library(emulator src/cpu.cpp src/bus.cpp src/csrs.cpp src/exception.cpp
             src/floating.cpp src/devices/clint.cpp src/devices/plic.cpp
             src/devices/uart.cpp src/devices/virtio_blk.cpp)
 target_include_directories(emulator PUBLIC include)
+target_include_directories(emulator PRIVATE ${MPFR_INCLUDE_DIR})
+target_link_libraries(emulator PRIVATE ${MPFR_LIBRARY})
 
-target_include_directories(RiscV
-  PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${LIBFDT_INCLUDE_DIR}
-)
-target_link_libraries(RiscV PRIVATE ${LIBFDT_LIBRARY})
+target_include_directories(RiscV PRIVATE ${LIBFDT_INCLUDE_DIR})
+target_link_libraries(RiscV PRIVATE emulator ${LIBFDT_LIBRARY})
 
-foreach(target RiscV emulator)
-  target_include_directories(${target} PRIVATE ${MPFR_INCLUDE_DIR})
-  target_link_libraries(${target} PRIVATE ${MPFR_LIBRARY})
-endforeach()
+set(RISCV_TOOLCHAIN_PREFIX "riscv64-elf-" CACHE STRING
+    "Prefix for the bare-metal RISC-V GCC and binutils")
+find_program(RISCV_BARE_METAL_GCC NAMES "${RISCV_TOOLCHAIN_PREFIX}gcc" NO_CACHE)
+find_program(RISCV_BARE_METAL_OBJCOPY NAMES "${RISCV_TOOLCHAIN_PREFIX}objcopy" NO_CACHE)
 
-enable_testing()
-add_subdirectory(tests)
+include(CTest)
+if(BUILD_TESTING)
+  find_package(Python3 QUIET COMPONENTS Interpreter)
+  add_subdirectory(tests)
+endif()
 add_subdirectory(examples/kernel-userspace)
